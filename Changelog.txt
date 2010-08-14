@@ -1,0 +1,7 @@
+﻿Touhou Project BGM Extractor
+----------------------------
+Changelog
+----------------------------
+
+- 2010/08/14
+* Initial release, containing music data from TH06 to TH12.8
