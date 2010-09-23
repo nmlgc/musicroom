@@ -17,6 +17,7 @@
 // GUI
 // ---
 MainWnd* MW;
+FXApp* App;
 bool Lang;	// Current Tag Language (Japanese or English)
 bool Play;	// Play selected track?
 bool SilRem = true;	// Remove opening silence?
@@ -73,18 +74,20 @@ int main(int argc, char* argv[])
 
 	ReadConfig(CfgFile);
 
-	FXApp App(PrgName, "Nameless");
-	App.init(argc, argv);
+	FXApp _App(PrgName, "Nameless");
+	_App.init(argc, argv);
+
+	App = &_App;
 
 	OGGDumpFile.prepend(FXSystem::getTempDirectory() + SlashString);
 
-	MW = new MainWnd(&App);
+	MW = new MainWnd(&_App);
 
-	App.create();
+	_App.create();
 
 	AppPath = FXSystem::getCurrentDirectory() + PATHSEP;
 
 	MW->show(PLACEMENT_SCREEN);
 
-	return App.run();
+	return _App.run();
 }

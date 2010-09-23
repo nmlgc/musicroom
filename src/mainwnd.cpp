@@ -7,6 +7,8 @@
 #include "thbgmext.h"
 #include "stream.h"
 
+#include "extract.h"
+
 // Modified Table Widget
 // ---------------------
 LOTable::LOTable(FXComposite *p, FXObject* tgt, FXSelector sel, FXuint opts, FXint x, FXint y, FXint w, FXint h, FXint pl, FXint pr, FXint pt, FXint pb)
@@ -50,6 +52,8 @@ FXDEFMAP(MainWnd) MMMainWnd[] =
 	FXMAPFUNCS(SEL_COMMAND, MainWnd::MW_UPDATE_ENC, MainWnd::MW_UPDATE_ENC_END, MainWnd::onUpdEnc),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_OUTDIR, MainWnd::onSelectOutDir),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_EXTRACT, MainWnd::onExtract),
+	FXMAPFUNC(SEL_TIMEOUT, MainWnd::MW_EXTPROC, MainWnd::onExtProc),
+	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_EXT_FINISH, MainWnd::onExtFinish),
 };
 
 FXIMPLEMENT(MainWnd, FXMainWindow, MMMainWnd, ARRAYNUMBER(MMMainWnd));
@@ -94,7 +98,7 @@ MainWnd::MainWnd(FXApp* App)
 		TrackFrame = new FXSplitter(GameBox, SPLITTER_HORIZONTAL | SPLITTER_TRACKING | LAYOUT_FILL);
 		  TrackEdge = new FXPacker(TrackFrame, FRAME_SUNKEN | LAYOUT_MIN_WIDTH, 0, 0, 300, 0, 0, 0, 0, 0, 0, 0);
 		CommentEdge = new FXPacker(TrackFrame, FRAME_SUNKEN | LAYOUT_MIN_WIDTH, 0, 0, 300, 0, 0, 0, 0, 0, 0, 0);
-		TrackView = new LOTable(TrackEdge, this, MW_CHANGE_TRACK, TABLE_COL_SIZABLE | TABLE_READONLY | LAYOUT_FILL);
+		TrackView = new LOTable(TrackEdge, this, MW_CHANGE_TRACK, TABLE_COL_SIZABLE | LAYOUT_FILL);
 
 		TmpClr = TrackView->getTextColor();
 		TrackView->setTextColor(TrackView->getBackColor());
@@ -483,7 +487,6 @@ long MainWnd::onSelectOutDir(FXObject* Sender, FXSelector Message, void* ptr)
 
 long MainWnd::onExtract(FXObject* Sender, FXSelector Message, void* ptr)
 {
-	FXString Stat;
 	short ExtStart = -1, ExtEnd = -1;
 
 	if(OutDirField->getText().empty())
@@ -507,10 +510,6 @@ long MainWnd::onExtract(FXObject* Sender, FXSelector Message, void* ptr)
 
 	FX::FXSystem::setCurrentDirectory(AppPath);
 
-	Encoder* Enc = &Encoders.Get(EncFmt - 1)->Data;
-
-	ListEntry<TrackInfo>* CurTrack;
-
 	if(Sender == StartSel)
 	{
 		ExtStart = TrackView->getSelStartRow();
@@ -522,25 +521,31 @@ long MainWnd::onExtract(FXObject* Sender, FXSelector Message, void* ptr)
 		ExtEnd = ActiveGame->Track.Size();
 	}
 
+	Extractor::Inst().Start(ExtStart, ExtEnd);
 
-	Stat.format("Extraction started.\nCommand line: %s %s\n-------------------\n", Enc->CmdLine[0], Enc->CmdLine[1]);
-
-	MW->PrintStat(Stat);
-	uint Ret;
-
-	for(CurTrack = ActiveGame->Track.Get(ExtStart); ExtStart < ExtEnd; ExtStart++)
-	{
-		Ret = ExtractTrack(&CurTrack->Data);
-		if(Ret == MBOX_CLICKED_CANCEL)	break;
-		CurTrack = CurTrack->Next();
-	}
-
-	if(Ret != MBOX_CLICKED_CANCEL)	MW->PrintStat("-------------------\nExtraction finished.\n");
-	else							MW->PrintStat("-------------------\nExtraction canceled.\n");
-
-	StartAll->enable(); StartSel->enable();
 	return 1;
 }
+
+long MainWnd::onExtProc(FXObject* Sender, FXSelector Message, void* ptr)
+{
+	bool r = Extractor::Inst().ExtProc();
+
+	if(r)	getApp()->addTimeout(this, MW_EXTPROC, WAIT_INTERVAL);
+	else
+	{
+		getApp()->removeTimeout(this, MW_EXTPROC);
+		Extractor::Inst().Next();
+	}
+	return 1;
+}
+
+long MainWnd::onExtFinish(FXObject* Sender, FXSelector Message, void* ptr)
+{
+	StartAll->enable(); StartSel->enable();
+
+	return 1;
+}
+
 
 void MainWnd::PrintStat(FXString NewStat)
 {

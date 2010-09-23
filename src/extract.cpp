@@ -23,7 +23,10 @@
 #include <mpeg/mpegfile.h>
 #include <flac/flacfile.h>
 
+#include "extract.h"
+
 const ushort WAV_HEADER_SIZE = 44;
+const ulong WAIT_INTERVAL = 20;
 
 // Globals
 FXString Comment[2];
@@ -226,36 +229,38 @@ inline void CalcFade(char* Buf, long& BufSize, long* FadeStart, long* c, long& F
 	}
 }
 
-uint ExtractTrack(TrackInfo* TI)
+uint Extractor::ExtractStep1(TrackInfo* TI)
 {
 	FXString Str, Cmd;
 	FXString InFN;  	// BGM file to read from (e.g. thbgm.dat)
-	FXString DumpFN;	// Temporary extraction wave file, created in a temporary directory (e.g. extract.wav)
-	FXString EncFN; 	// Temporary path to the encoded file in the temporary directory (e.g. extract.mp3)
-	FXString OutFN;		// Final encoded output file
 	FX::FXFile In;
 	char* Buf = NULL;
 	long BufSize, Read;
 	long Fade, FadeStart, c = 0;
 	short* f;
-	static uint Ret = MBOX_CLICKED_YES;
-	Encoder* Enc = &Encoders.Get(EncFmt - 1)->Data;
-	FXString Ext = Enc->Name.lower();
 
 	// OutFN
 	// -----
-
 	OutFN = PatternFN(TI);
 	Str.format("Creating %s...", OutFN.text());
 	OutFN.prepend(OutPath);
 	// ------------------------
 
-	if(Ret != MBOX_CLICKED_YESALL && Ret != MBOX_CLICKED_NOALL)
+	if(FXStat::exists(OutFN))
 	{
-		if(FXStat::exists(OutFN))	Ret = FXMessageBox::question(MW->getApp(), MBOX_YES_YESALL_NO_NOALL_CANCEL, PrgName.text(), "%s already exists.\nOverwrite?", OutFN);
-	}
+		if(Ret != MBOX_CLICKED_YESALL && Ret != MBOX_CLICKED_NOALL)
+		{
+			Ret = FXMessageBox::question(MW->getApp(), MBOX_YES_YESALL_NO_NOALL_CANCEL, PrgName.text(), "%s already exists.\nOverwrite?", OutFN);
+		}
 
-	if(Ret != MBOX_CLICKED_YES && Ret != MBOX_CLICKED_YESALL)	return Ret;
+		if(Ret == MBOX_CLICKED_NO || Ret == MBOX_CLICKED_NOALL)
+		{
+			Next();
+			return Ret;
+		}
+
+		if(Ret != MBOX_CLICKED_YES && Ret != MBOX_CLICKED_YESALL)			return Ret;
+	}
 	// -----
 
 	// The most special cases...
@@ -264,6 +269,8 @@ uint ExtractTrack(TrackInfo* TI)
 	{
 		if( (TI->Loop == 0) || (FadeDur == 0 && LoopCnt == 1) )
 		{
+			PI.hProcess = 0;
+
 			OutFN = PatternFN(TI);
 			Str.format("Directly copying %s...", OutFN.text());
 			OutFN.prepend(OutPath);
@@ -275,11 +282,8 @@ uint ExtractTrack(TrackInfo* TI)
 			PM_BMOgg::Inst().DumpOGG(In, TI->Start[0], TI->FS);
 			In.close();
 
-			TagTrack(TI, OGGDumpFile, Ext);
-
-			FX::FXFile::moveFiles(OGGDumpFile, OutFN, true);
-
-			MW->PrintStat("done.\n");
+			EncFN = OGGDumpFile;
+			App->addTimeout(MW, MainWnd::MW_EXTPROC, WAIT_INTERVAL);
 
 			return Ret;
 		}
@@ -437,13 +441,14 @@ uint ExtractTrack(TrackInfo* TI)
 	Cmd.format("%s%s", AppPath, Enc->CmdLine[0].text());
 	Str.format("%s %s \"%s\" \"%s\"", Enc->CmdLine[1], Enc->CmdLine[1], DumpFN, EncFN);
 #ifdef WIN32
+	// Yes, we have to use this for Unicode compliance!
+
 	STARTUPINFO SI;
 	ZeroMemory(&SI, sizeof(STARTUPINFO));
 	SI.cb = sizeof(STARTUPINFO);
 	SI.dwFlags = STARTF_USESHOWWINDOW;
 	SI.wShowWindow = SW_SHOWNOACTIVATE;
 
-	PROCESS_INFORMATION PI;
 	ZeroMemory(&PI, sizeof(PROCESS_INFORMATION));
 
 	wchar_t* CmdW = new FXnchar[Cmd.length() + 1];
@@ -452,20 +457,30 @@ uint ExtractTrack(TrackInfo* TI)
 	utf2ncs(CmdW, Cmd.length() + 1, Cmd.text(), Cmd.length() + 1);
 	utf2ncs(StrW, Str.length() + 1, Str.text(), Str.length() + 1);
 
-	if(!CreateProcessW(CmdW, StrW, NULL, NULL, false, ShowConsole ? 0 : DETACHED_PROCESS, NULL, NULL, &SI, &PI))
+	BOOL r = CreateProcessW(CmdW, StrW, NULL, NULL, false, ShowConsole ? 0 : DETACHED_PROCESS, NULL, NULL, &SI, &PI);
+
+	SAFE_DELETE_ARRAY(CmdW);
+	SAFE_DELETE_ARRAY(StrW);
+
+	if(!r)
 	{
 		Str.format("\nERROR: Couldn't start %s!\nPlease make sure this file exists in the directory of this application,\nor reconfigure your encoder settings.\n", Enc->CmdLine[0]);
 		MW->PrintStat(Str);
 		Ret = MBOX_CLICKED_CANCEL;
-		goto Cleanup;
+		return Cleanup();
 	}
-	else	WaitForSingleObject(PI.hProcess, INFINITE);
+	else	App->addTimeout(MW, MainWnd::MW_EXTPROC, WAIT_INTERVAL);
 #else
 	system(Str.text());
 #endif
 	// ------
 
-	TagTrack(TI, EncFN, Ext);
+	return Ret;
+}
+
+void Extractor::ExtractStep2(TrackInfo* TI)
+{
+	Tag(TI, EncFN, Ext);
 
 	// Move
 	// ====
@@ -473,11 +488,11 @@ uint ExtractTrack(TrackInfo* TI)
 	// ====
 
 	MW->PrintStat("done.\n");
+	Cleanup();
+}
 
-Cleanup:
-	SAFE_DELETE_ARRAY(CmdW);
-	SAFE_DELETE_ARRAY(StrW);
-	
+uint Extractor::Cleanup()
+{
 	FX::FXFile::remove(DumpFN);
 	FX::FXFile::remove(EncFN);
 	FX::FXFile::remove(DecodeFile);
@@ -485,7 +500,7 @@ Cleanup:
 	return Ret;
 }
 
-void TagTrack(TrackInfo* TI, FXString& TagFN, FXString& Ext)
+void Extractor::Tag(TrackInfo* TI, FXString& TagFN, FXString& Ext)
 {
 	FXString OtherLang;
 
@@ -501,3 +516,70 @@ void TagTrack(TrackInfo* TI, FXString& TagFN, FXString& Ext)
 	else if(Ext == "mp3")	MP3Tag(TI, TagFN, OtherLang);
 	else if(Ext == "ogg")	OGGTag(TI, TagFN, OtherLang);
 }
+
+// Extractor
+// ---------
+
+bool Extractor::ExtractTrack(TrackInfo* TI)
+{
+	uint Ret = ExtractStep1(TI);
+
+	if(Ret == MBOX_CLICKED_CANCEL)	return Finish();
+	else	return true;
+}
+
+bool Extractor::ExtProc()
+{
+	if(WaitForSingleObject(PI.hProcess, 1) == WAIT_OBJECT_0 || (ulong)PI.hProcess == 0)
+	{
+		ExtractStep2(&CurTrack->Data);
+		return false;
+	}
+	else return true;
+}
+
+bool Extractor::Next()
+{
+	CurTrack = CurTrack->Next();	Cur++;
+
+	if( (Cur == Last) || !CurTrack)	return Finish();
+	else							return ExtractTrack(&CurTrack->Data);
+}
+
+bool Extractor::Start(short ExtStart, short ExtEnd)
+{
+	FXString Stat;
+
+	if(Active)	Finish();
+
+	Cur = ExtStart;
+	Last = ExtEnd;
+
+	Enc = &Encoders.Get(EncFmt - 1)->Data;
+	Ext = Enc->Name.lower();
+
+	Stat.format("Extraction started.\nCommand line: %s %s\n-------------------\n", Enc->CmdLine[0], Enc->CmdLine[1]);
+	MW->PrintStat(Stat);
+
+	CurTrack = ActiveGame->Track.Get(Cur);
+
+	Ret = MBOX_CLICKED_YES;
+
+	ExtractTrack(&CurTrack->Data);
+
+	return Active = true;
+}
+
+bool Extractor::Finish()
+{
+	if(Ret != MBOX_CLICKED_CANCEL)	MW->PrintStat("-------------------\nExtraction finished.\n");
+	else                          	MW->PrintStat("-------------------\nExtraction canceled.\n");
+
+	CurTrack = NULL;
+	Cur = Last = 0;
+
+	MW->onExtFinish(MW, 0, NULL);
+
+	return Active = false;
+}
+// ---------

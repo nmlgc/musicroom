@@ -116,6 +116,8 @@ public:
 
 		MW_OUTDIR,
 		MW_EXTRACT,
+		MW_EXTPROC,
+		MW_EXT_FINISH,
 
 		ID_LAST 
 	};
@@ -135,7 +137,10 @@ public:
 	MESSAGE_FUNCTION(onFNPattern);
 	MESSAGE_FUNCTION(onUpdEnc);	// Updates all string labels with the set language
 	MESSAGE_FUNCTION(onSelectOutDir);
+	MESSAGE_FUNCTION(onExtractTrack);
 	MESSAGE_FUNCTION(onExtract);
+	MESSAGE_FUNCTION(onExtProc);
+	MESSAGE_FUNCTION(onExtFinish);
 
 	void PrintStat(FXString NewStat);
 };

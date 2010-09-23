@@ -58,7 +58,7 @@ struct TrackInfo
 	FXString	Artist;	// Composer of this track  - if the whole soundtrack was composed by one artist, the element of GameInfo is used instead
 
 	ulong	FS;		// File size for compressed (read: Vorbis) tracks
-	bool	Vorbis;	// Yes, subclassing would be nicer, but I'm tired now
+	bool	Vorbis;
 
 	// Absolute Track Positions
 	ulong	Start[2];	// (with or without silence)
@@ -105,7 +105,6 @@ struct Encoder
 };
 
 #include "parse.h"
-#include "extract.h"
 #include "mainwnd.h"
 
 // Globals
@@ -113,6 +112,7 @@ struct Encoder
 
 // GUI
 // ---
+extern FXApp* App;
 extern MainWnd* MW;
 extern bool Lang;	// Current Tag Language (Japanese or English)
 extern bool Play;	// Play selected track?

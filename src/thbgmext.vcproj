@@ -139,7 +139,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="vorbisfile_static.lib ogg_static.lib vorbis_static.lib tag.lib fox.lib msimg32.lib imm32.lib winmm.lib ws2_32.lib"
+				AdditionalDependencies="vorbisfile_static.lib ogg_static.lib vorbis_static.lib tagdll.lib fox.lib msimg32.lib imm32.lib winmm.lib ws2_32.lib"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="2"

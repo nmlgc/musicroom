@@ -3,6 +3,9 @@
 Changelog
 ----------------------------
 
+- 2010/09/15
+* Fixed a number of GUI inconveniences. The extraction processes now don't deadlock the GUI anymore.
+
 - 2010/08/16
 * Fixed an oversight with the silence removal, which was checked byte- instead of sample-wise (yes, embarrassing, I know).
 

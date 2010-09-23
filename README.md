@@ -113,6 +113,9 @@ index 31d89b34..dd4c22ce 100644
   not needed, so just remove it from the link dependency list at *Linker → Input
   → Additional Dependencies*.
 
+  Also change `tagdll.lib` to `tag.lib` in the Release build's link dependency
+  list.
+
 * Place the compiled binary into the `dist/` directory, since it absolutely
   needs `thbgmext.cfg` to run.
   Also, copy the `.bgm` files from bgmlib's `bgminfo/` subdirectory there.

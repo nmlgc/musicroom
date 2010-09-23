@@ -6,6 +6,8 @@ via external encoders, while adding the correct* tags for the language of your c
 You can customize the loop count, fade duration and automatic filenaming.
 It also can be used as a standalone music room.
 
+A configuration file is provided to change default GUI settings and customize encoding options.
+
 Feel free to rehost this anywhere you like.
 If this gets included in any kind of complete Touhou distribution (e.g. a DVD you burn yourself),
 or hosted at a more visible place for newcomers, this tool has achieved its purpose.
@@ -28,7 +30,7 @@ If you want to compile it yourself, you'll need the following libraries:
 - FOX Toolkit GUI Library (http://fox-toolkit.org/). Go for the development version.
 - TagLib (http://developer.k.. no, forget it.)
   I couldn't do anything with the original version, so I changed it to make it actually usable.
-  Grab it from here:
+  Grab it from here: http://www.mediafire.com/?g91lawdml92c88k
 
 Thanks to the people behind Brightmoon for supplying the sources for decrypting archives of the Tasofro games.
 Since I don't have those hacking skills, I couldn't support these games without you.
@@ -39,5 +41,11 @@ Since I don't have those hacking skills, I couldn't support these games without 
 
 Version History
 ---------------
+- 15.09.2010
+Fixed a number of GUI inconveniences. The extraction processes now don't deadlock the GUI anymore.
+Also, discovered that Mediafire has a file update function! Unfortunately, since I have limited
+upload tickets, I can only assure the next three versions to stay at a consistent download link...
+But it's at least better than having to change the links all the time.
+
 - 14.08.2010
 Initial release, containing music data from TH06 to TH12.8
