@@ -28,7 +28,7 @@
 const ushort WAV_HEADER_SIZE = 44;
 const ulong WAIT_INTERVAL = 20;
 
-// Globals
+// Yes, this is here because I don't want to include taglib anywhere else but in this file
 FXString Comment[2];
 
 TagLib::String TLStrConv(FXString x)
@@ -59,98 +59,6 @@ static ov_callbacks OV_CALLBACKS_DECRYPT =
 };
 // ------------
 
-// Tagging
-// =======
-
-void ID3v2SetCustom(TagLib::ID3v2::Tag* Tag, FXString& Frame, FXString& Value)
-{
-	FXString OL;
-	uint OLLen;
-	TagLib::String Conv;
-
-	OL = Frame + '\r' + Value;
-	OLLen = OL.length() + 1;
-	OL.substitute('\r', '\0');
-	Conv.Copy(OL.text(), OLLen, TagLib::String::UTF8);
-
-	Tag->setTextFrame("TXXX", Conv);
-}
-
-void MP3Tag(TrackInfo* TI, FXString& FN, FXString& OtherLang)
-{
-	MW->PrintStat("tagging...");
-
-	TagLib::MPEG::File TF(FN.text());
-
-	TagLib::ID3v2::Tag* Tag = TF.ID3v2Tag(true);
-
-	Tag->setArtist(TLStrConv(TI->Artist));
-	ID3v2SetCustom(Tag, FXString("COMPOSER"), TI->Artist);
-	Tag->setGenre("Game");
-	ID3v2SetCustom(Tag, FXString("ALBUM ARTIST"), ActiveGame->Artist);
-	ID3v2SetCustom(Tag, FXString("TOTALTRACKS"), FXString::value((FXuint)ActiveGame->Track.Size(), 10));
-	
-	Tag->setTextFrame("TPOS", TLStrConv(ActiveGame->GameNum));
-	Tag->setTrack(TI->Number);
-	Tag->setYear(ActiveGame->Year);
-
-	Tag->setTitle(TLStrConv(TI->Name[Lang]));
-	Tag->setAlbum(TLStrConv(ActiveGame->Name[Lang]));
-	Tag->setComment(TLStrConv(Comment[Lang]));
-
-	ID3v2SetCustom(Tag, OtherLang + "_NAME", TI->Name[!Lang]);
-	ID3v2SetCustom(Tag, OtherLang + "_COMMENT", Comment[!Lang]);
-	ID3v2SetCustom(Tag, OtherLang + "_GAME", ActiveGame->Name[!Lang]);
-
-	TF.save();
-}
-
-void XiphTag(TagLib::Ogg::XiphComment* Tag, TrackInfo* TI, FXString& OtherLang)
-{
-	Tag->setArtist(TLStrConv(TI->Artist));
-	Tag->addField(TLStrConv("COMPOSER"), TLStrConv(TI->Artist), false);
-	Tag->setGenre("Game");
-	Tag->addField(TLStrConv("ALBUM ARTIST"), TLStrConv(ActiveGame->Artist), false);
-	Tag->addField(TLStrConv("DISCNUMBER"), TLStrConv(ActiveGame->GameNum), false);
-	Tag->addField(TLStrConv("TOTALTRACKS"), TLStrConv(FXString::value((FXuint)ActiveGame->Track.Size(), 10)), false);
-	
-	Tag->setTrack(TI->Number);
-	Tag->setYear(ActiveGame->Year);
-
-	Tag->setTitle(TLStrConv(TI->Name[Lang]));
-	Tag->setAlbum(TLStrConv(ActiveGame->Name[Lang]));
-	Tag->addField("COMMENT", TLStrConv(Comment[Lang]));
-
-	Tag->addField(TLStrConv(OtherLang + "_NAME"), TLStrConv(TI->Name[!Lang]), false);
-	Tag->addField(TLStrConv(OtherLang + "_COMMENT"), TLStrConv(Comment[!Lang]), false);
-	Tag->addField(TLStrConv(OtherLang + "_GAME"), TLStrConv(ActiveGame->Name[!Lang]), false);
-}
-
-void OGGTag(TrackInfo* TI, FXString& FN, FXString& OtherLang)
-{
-	MW->PrintStat("tagging...");
-
-	TagLib::Vorbis::File TF(FN.text());
-
-	TagLib::Ogg::XiphComment* Tag = TF.tag();
-	XiphTag(Tag, TI, OtherLang);
-
-	TF.save();
-}
-
-void FLACTag(TrackInfo* TI, FXString& FN, FXString& OtherLang)
-{
-	MW->PrintStat("tagging...");
-
-	TagLib::FLAC::File TF(FN.text());
-
-	TagLib::Ogg::XiphComment* Tag = TF.xiphComment(true);
-	XiphTag(Tag, TI, OtherLang);
-
-	TF.save();
-}
-// =======
-
 ulong TrackInfo::GetByteLength()
 {
 	ulong tl, te, len;
@@ -169,7 +77,7 @@ ulong TrackInfo::GetByteLength()
 	if(Loop != 0)
 	{
 		len = (te - tl) * LoopCnt + tl;
-		if(FadeDur > 0 && Loop != End)	len += (FadeDur) * 44100 * 4;
+		if(FadeDur > 0 && Loop != End)	len += (ulong)((FadeDur) * 44100.0f * 4.0f);
 	}
 	else	len = te;
 
@@ -208,7 +116,6 @@ void makeheader(char *header,int datasize)
 	memcpy(header+36,"data",4);
 	i = datasize;
 	memcpy(header+40,&i,4);
-	
 }
 
 inline short* EvalFade(short* f, long& c, long& Fade)
@@ -229,45 +136,22 @@ inline void CalcFade(char* Buf, long& BufSize, long* FadeStart, long* c, long& F
 	}
 }
 
-uint Extractor::ExtractStep1(TrackInfo* TI)
+uint Extractor::ExtractStep1(TrackInfo* TI, FXString& OutFN)
 {
+	if(!Active)	return Ret;
+
 	FXString Str, Cmd;
 	FXString InFN;  	// BGM file to read from (e.g. thbgm.dat)
-	FX::FXFile In;
-	char* Buf = NULL;
+	Buf = NULL;
 	long BufSize, Read;
 	long Fade, FadeStart, c = 0;
 	short* f;
-
-	// OutFN
-	// -----
-	OutFN = PatternFN(TI);
-	Str.format("Creating %s...", OutFN.text());
-	OutFN.prepend(OutPath);
-	// ------------------------
-
-	if(FXStat::exists(OutFN))
-	{
-		if(Ret != MBOX_CLICKED_YESALL && Ret != MBOX_CLICKED_NOALL)
-		{
-			Ret = FXMessageBox::question(MW->getApp(), MBOX_YES_YESALL_NO_NOALL_CANCEL, PrgName.text(), "%s already exists.\nOverwrite?", OutFN);
-		}
-
-		if(Ret == MBOX_CLICKED_NO || Ret == MBOX_CLICKED_NOALL)
-		{
-			Next();
-			return Ret;
-		}
-
-		if(Ret != MBOX_CLICKED_YES && Ret != MBOX_CLICKED_YESALL)			return Ret;
-	}
-	// -----
 
 	// The most special cases...
 	// -------------------------
 	if( TI->Vorbis && (Ext == "ogg") )
 	{
-		if( (TI->Loop == 0) || (FadeDur == 0 && LoopCnt == 1) )
+		if( (TI->Loop == 0) || (FadeDur == 0.0f && LoopCnt == 1) )
 		{
 			PI.hProcess = 0;
 
@@ -279,19 +163,17 @@ uint Extractor::ExtractStep1(TrackInfo* TI)
 			FXString FN = GamePath + SlashString + ActiveGame->BGMFile;
 
 			In.open(FN, FXIO::Reading);
-			PM_BMOgg::Inst().DumpOGG(In, TI->Start[0], TI->FS);
+			PM_BMOgg::Inst().DumpOGG(In, TI->Start[0], TI->FS, OGGDumpFile);
 			In.close();
 
 			EncFN = OGGDumpFile;
-			App->addTimeout(MW, MainWnd::MW_EXTPROC, WAIT_INTERVAL);
 
-			return Ret;
+			return ExtractStep2(TI, OutFN);
 		}
 	}
+	Str.format("Creating %s...", OutFN.text());
 	// -------------------------
 
-	FXSystem::setCurrentDirectory(FXSystem::getTempDirectory());
-	
 	DumpFN.format("%d.wav", TI->Number);
 	EncFN.format("%d.%s", TI->Number, Enc->Name.lower());
 
@@ -326,21 +208,20 @@ uint Extractor::ExtractStep1(TrackInfo* TI)
 		FILE* BGM = fopen(BGMFN.text(), "rb");
 		fseek(BGM, TI->Start[0], SEEK_SET);
 
-		FILE* Decode = fopen(DecodeFile.text(), "wb");
-
+		Out.open(DecodeFile, FXIO::Writing);
 		ov_open_callbacks(BGM, &VF, NULL, 0, OV_CALLBACKS_DECRYPT);
 
 		while(!eof)
 		{
 			ret = ov_read(&VF, pcmout, sizeof(pcmout), 0, 2, 1, &Sec);
 
-			if(ret > 0)	fwrite(pcmout, ret, 1, Decode);
+			if(ret > 0)	Out.writeBlock(pcmout, ret);
 			else		eof = true;
 		}
 
 		ov_clear(&VF);
 
-		fclose(Decode);
+		Out.close();
 		fclose(BGM);
 
 		In.open(DecodeFile.text(), FXIO::Reading);
@@ -354,13 +235,13 @@ uint Extractor::ExtractStep1(TrackInfo* TI)
 		TI->End *= 4;
 	}
 
-	FX::FXFile Out(DumpFN, FXIO::Writing);
+	Out.open(DumpFN, FXIO::Writing);
 	Out.writeBlock(Header, WAV_HEADER_SIZE);
 
 	// Start transfer
 	// --------------
 
-	Fade = abs(FadeDur) * 44100 * 4;
+	Fade = (ulong)(fabs(FadeDur) * 44100.0f * 4.0f);
 	
 	if( (TI->Loop == TI->End) || (TI->Loop == 0)) Fade = 0;
 
@@ -448,7 +329,6 @@ uint Extractor::ExtractStep1(TrackInfo* TI)
 	SI.cb = sizeof(STARTUPINFO);
 	SI.dwFlags = STARTF_USESHOWWINDOW;
 	SI.wShowWindow = SW_SHOWNOACTIVATE;
-
 	ZeroMemory(&PI, sizeof(PROCESS_INFORMATION));
 
 	wchar_t* CmdW = new FXnchar[Cmd.length() + 1];
@@ -457,7 +337,10 @@ uint Extractor::ExtractStep1(TrackInfo* TI)
 	utf2ncs(CmdW, Cmd.length() + 1, Cmd.text(), Cmd.length() + 1);
 	utf2ncs(StrW, Str.length() + 1, Str.text(), Str.length() + 1);
 
-	BOOL r = CreateProcessW(CmdW, StrW, NULL, NULL, false, ShowConsole ? 0 : DETACHED_PROCESS, NULL, NULL, &SI, &PI);
+	DWORD Flags = 0;//CREATE_NEW_PROCESS_GROUP;
+	if(!ShowConsole)	Flags |= DETACHED_PROCESS;
+
+	BOOL r = CreateProcessW(CmdW, StrW, NULL, NULL, true, Flags, NULL, NULL, &SI, &PI);
 
 	SAFE_DELETE_ARRAY(CmdW);
 	SAFE_DELETE_ARRAY(StrW);
@@ -469,30 +352,41 @@ uint Extractor::ExtractStep1(TrackInfo* TI)
 		Ret = MBOX_CLICKED_CANCEL;
 		return Cleanup();
 	}
-	else	App->addTimeout(MW, MainWnd::MW_EXTPROC, WAIT_INTERVAL);
 #else
 	system(Str.text());
 #endif
 	// ------
 
-	return Ret;
+	WaitForSingleObject(PI.hProcess, INFINITE);	// Threads are awesome.
+
+	return ExtractStep2(TI, OutFN);
 }
 
-void Extractor::ExtractStep2(TrackInfo* TI)
+uint Extractor::ExtractStep2(TrackInfo* TI, FXString& OutFN)
 {
-	Tag(TI, EncFN, Ext);
+	if(!Active)	return Ret;
 
-	// Move
-	// ====
-	FX::FXFile::moveFiles(EncFN, OutFN, true);
-	// ====
+	MW->PrintStat("tagging...");
+	Tagger::Inst().Tag(TI, EncFN, Ext);
 
-	MW->PrintStat("done.\n");
+	if(!FXFile::moveFiles(EncFN, OutFN, true))
+	{
+		FXString Str;
+		Str.format("\nERROR: Couldn't write %s!\nDirectory is write-protected, cancelling extraction...\n", OutFN);
+		MW->PrintStat(Str);
+		Ret = MBOX_CLICKED_CANCEL;
+	}
+	else	MW->PrintStat("done.\n");
+
 	Cleanup();
+
+	return Ret;
 }
 
 uint Extractor::Cleanup()
 {
+	In.close();
+	Out.close();
 	FX::FXFile::remove(DumpFN);
 	FX::FXFile::remove(EncFN);
 	FX::FXFile::remove(DecodeFile);
@@ -500,57 +394,12 @@ uint Extractor::Cleanup()
 	return Ret;
 }
 
-void Extractor::Tag(TrackInfo* TI, FXString& TagFN, FXString& Ext)
-{
-	FXString OtherLang;
-
-	// Prepare strings
-	// ---------------
-	for(ushort c = 0; c < 2; c++)	{Comment[c] = TI->Comment[c];	Comment[c].substitute("\n", "\r\n");}
-
-	if(Lang == LANG_JP)	OtherLang = "EN";
-	else				OtherLang = "JP";
-	// ---------------
-
-	     if(Ext == "flac")	FLACTag(TI, TagFN, OtherLang);
-	else if(Ext == "mp3")	MP3Tag(TI, TagFN, OtherLang);
-	else if(Ext == "ogg")	OGGTag(TI, TagFN, OtherLang);
-}
-
 // Extractor
 // ---------
-
-bool Extractor::ExtractTrack(TrackInfo* TI)
-{
-	uint Ret = ExtractStep1(TI);
-
-	if(Ret == MBOX_CLICKED_CANCEL)	return Finish();
-	else	return true;
-}
-
-bool Extractor::ExtProc()
-{
-	if(WaitForSingleObject(PI.hProcess, 1) == WAIT_OBJECT_0 || (ulong)PI.hProcess == 0)
-	{
-		ExtractStep2(&CurTrack->Data);
-		return false;
-	}
-	else return true;
-}
-
-bool Extractor::Next()
-{
-	CurTrack = CurTrack->Next();	Cur++;
-
-	if( (Cur == Last) || !CurTrack)	return Finish();
-	else							return ExtractTrack(&CurTrack->Data);
-}
 
 bool Extractor::Start(short ExtStart, short ExtEnd)
 {
 	FXString Stat;
-
-	if(Active)	Finish();
 
 	Cur = ExtStart;
 	Last = ExtEnd;
@@ -561,25 +410,346 @@ bool Extractor::Start(short ExtStart, short ExtEnd)
 	Stat.format("Extraction started.\nCommand line: %s %s\n-------------------\n", Enc->CmdLine[0], Enc->CmdLine[1]);
 	MW->PrintStat(Stat);
 
-	CurTrack = ActiveGame->Track.Get(Cur);
-
 	Ret = MBOX_CLICKED_YES;
 
-	ExtractTrack(&CurTrack->Data);
+	cancel();
+	start();
 
 	return Active = true;
 }
 
-bool Extractor::Finish()
+int Extractor::run()
 {
-	if(Ret != MBOX_CLICKED_CANCEL)	MW->PrintStat("-------------------\nExtraction finished.\n");
-	else                          	MW->PrintStat("-------------------\nExtraction canceled.\n");
+	FXString OutFN, Str;
+	FXMessageChannel MsgChan(App);
+
+	FXSystem::setCurrentDirectory(FXSystem::getTempDirectory());
+
+	CurTrack = ActiveGame->Track.Get(Cur);
+	do
+	{
+		if(CurTrack->Data.Start[0] == 0)	continue;
+
+		OutFN = OutPath + PatternFN(&CurTrack->Data);
+		
+		if(FXStat::exists(OutFN))
+		{
+			if(Ret != MBOX_CLICKED_YESALL && Ret != MBOX_CLICKED_NOALL)
+			{
+				Str = OutFN + " already exists.\nOverwrite?";
+				MsgChan.message(MW, FXSEL(SEL_COMMAND, MW->MW_EXT_MSG), &Str, sizeof(FXString*));
+				suspend();
+			}
+			if(Ret == MBOX_CLICKED_CANCEL)	break;
+			if(Ret != MBOX_CLICKED_YES && Ret != MBOX_CLICKED_YESALL)	continue;
+		}
+
+		ExtractStep1(&CurTrack->Data, OutFN);
+		if(Ret == MBOX_CLICKED_CANCEL)	break;
+	}
+	while( CurTrack && (CurTrack = CurTrack->Next()) && ++Cur <= Last);
+
+	Finish();
+
+	return 1;
+}
+
+// Yay, how stupid.
+BOOL CALLBACK EnumWndProc(HWND HWnd, LPARAM lParam)
+{
+	wchar_t Str[MAX_PATH];
+	GetWindowText(HWnd, Str, MAX_PATH);
+
+	FXString Test = Str;
+	if(Test.contains(Extractor::Inst().Enc->CmdLine[0]))
+	{
+		HWND* Trg = (HWND*)lParam;
+		*Trg = HWnd;
+		return false;
+	}
+	return true;
+}
+
+void Extractor::Stop(FXString* Msg, bool ThreadCall)
+{
+	if(!Active)	return;
+
+	if(!ThreadCall)	cancel();
+	SAFE_DELETE_ARRAY(Buf);
+
+	Active = false;
+
+	if(PI.hProcess != 0)
+	{
+		HWND EncWnd = NULL;
+		EnumWindows(EnumWndProc, (LPARAM)&EncWnd);
+		if(EncWnd)
+		{
+			SendMessage(EncWnd, WM_QUIT, 0, 0);
+			SendMessage(EncWnd, WM_CLOSE, 0, 0);
+			SendMessage(EncWnd, WM_DESTROY, 0, 0);
+		}
+	}
 
 	CurTrack = NULL;
 	Cur = Last = 0;
 
-	MW->onExtFinish(MW, 0, NULL);
+	Cleanup();
 
-	return Active = false;
+	MW->handle(this, FXSEL(SEL_COMMAND, MW->MW_EXT_FINISH), NULL);
+
+	if(Msg)	MW->PrintStat(*Msg);
+	else	MW->PrintStat("\n-------------------\nExtraction stopped.\n\n");
+
+	detach();
+}
+
+bool Extractor::Finish()
+{
+	if(!Active)	return Active;
+
+	FXString Msg;
+
+	if(Ret != MBOX_CLICKED_CANCEL)	Msg = "-------------------\nExtraction finished.\n\n";
+	else                          	Msg = "-------------------\nExtraction canceled.\n\n";
+
+	Stop(&Msg, true);
+
+	return Active;
 }
 // ---------
+
+// Tagging
+// =======
+
+void ID3v2SetCustom(TagLib::ID3v2::Tag* Tag, FXString& Frame, FXString& Value)
+{
+	FXString OL;
+	uint OLLen;
+	TagLib::String Conv;
+
+	OL = Frame + '\a' + Value;	// No one will ever use \a in a string, right?
+	OLLen = OL.length() + 1;
+	OL.substitute('\a', '\0');
+	Conv.Copy(OL.text(), OLLen, TagLib::String::UTF8);
+
+	Tag->setTextFrame("TXXX", Conv);
+}
+
+bool Tagger::MP3Tag(TrackInfo* TI, wchar_t* FN, FXString& OtherLang)
+{
+	TagLib::MPEG::File TF(FN);
+	if(TF.readOnly())	return false;
+
+	TF.strip();
+	TagLib::ID3v2::Tag* Tag = TF.ID3v2Tag(true);
+	Tag->removeFrames("TXXX");
+
+	ListEntry<IntString>* Cmp = ActiveGame->Composer.Get(TI->CmpID);
+
+	Tag->setArtist(TLStrConv(Cmp->Data[Lang]));
+	ID3v2SetCustom(Tag, FXString("COMPOSER"), Cmp->Data[Lang]);
+	Tag->setGenre("Game");
+	ID3v2SetCustom(Tag, FXString("ALBUM ARTIST"), ActiveGame->Artist[Lang]);
+	ID3v2SetCustom(Tag, FXString("CIRCLE"), ActiveGame->Circle[Lang]);
+	ID3v2SetCustom(Tag, FXString("TOTALTRACKS"), FXString::value((FXuint)ActiveGame->Track.Size(), 10));
+	
+	Tag->setTextFrame("TPOS", TLStrConv(ActiveGame->GameNum));
+	Tag->setTrack(TI->Number);
+	Tag->setYear(ActiveGame->Year);
+
+	Tag->setTitle(TLStrConv(TI->Name[Lang]));
+	Tag->setAlbum(TLStrConv(ActiveGame->FullName(Lang)));
+	Tag->setComment(TLStrConv(Comment[Lang]));
+
+	ID3v2SetCustom(Tag, OtherLang + "_CIRCLE", ActiveGame->Circle[!Lang]);
+	ID3v2SetCustom(Tag, OtherLang + "_ARTIST", Cmp->Data[!Lang]);
+	ID3v2SetCustom(Tag, OtherLang + "_NAME", TI->Name[!Lang]);
+	ID3v2SetCustom(Tag, OtherLang + "_COMMENT", Comment[!Lang]);
+	ID3v2SetCustom(Tag, OtherLang + "_GAME", ActiveGame->FullName(!Lang));
+
+	return TF.save();
+}
+
+void XiphTag(TagLib::Ogg::XiphComment* Tag, TrackInfo* TI, FXString& OtherLang)
+{
+	ListEntry<IntString>* Cmp = ActiveGame->Composer.Get(TI->CmpID);
+
+	Tag->setArtist(TLStrConv(Cmp->Data[Lang]));
+	Tag->addField(TLStrConv("COMPOSER"), TLStrConv(Cmp->Data[Lang]), true);
+	Tag->setGenre("Game");
+	Tag->addField(TLStrConv("ALBUM ARTIST"), TLStrConv(ActiveGame->Artist[Lang]), true);
+	Tag->addField(TLStrConv("CIRCLE"), TLStrConv(ActiveGame->Circle[Lang]), true);
+	Tag->addField(TLStrConv("DISCNUMBER"), TLStrConv(ActiveGame->GameNum), true);
+	Tag->addField(TLStrConv("TOTALTRACKS"), TLStrConv(FXString::value((FXuint)ActiveGame->Track.Size(), 10)), true);
+	
+	Tag->setTrack(TI->Number);
+	Tag->setYear(ActiveGame->Year);
+
+	Tag->setTitle(TLStrConv(TI->Name[Lang]));
+	Tag->setAlbum(TLStrConv(ActiveGame->FullName(Lang)));
+	Tag->addField("COMMENT", TLStrConv(Comment[Lang]));
+
+	Tag->addField(TLStrConv(OtherLang + "_CIRCLE"), TLStrConv(ActiveGame->Circle[!Lang]), true);
+	Tag->addField(TLStrConv(OtherLang + "_ARTIST"), TLStrConv(Cmp->Data[!Lang]), true);
+	Tag->addField(TLStrConv(OtherLang + "_NAME"), TLStrConv(TI->Name[!Lang]), true);
+	Tag->addField(TLStrConv(OtherLang + "_COMMENT"), TLStrConv(Comment[!Lang]), true);
+	Tag->addField(TLStrConv(OtherLang + "_GAME"), TLStrConv(ActiveGame->FullName(!Lang)), true);
+}
+
+bool Tagger::OGGTag(TrackInfo* TI, wchar_t* FN, FXString& OtherLang)
+{
+	TagLib::Vorbis::File TF(FN);
+	if(TF.readOnly())	return false;
+
+	TagLib::Ogg::XiphComment* Tag = TF.tag();
+	XiphTag(Tag, TI, OtherLang);
+
+	return TF.save();
+}
+
+bool Tagger::FLACTag(TrackInfo* TI, wchar_t* FN, FXString& OtherLang)
+{
+	TagLib::FLAC::File TF(FN);
+	if(TF.readOnly())	return false;
+
+	TagLib::Ogg::XiphComment* Tag = TF.xiphComment(true);
+	XiphTag(Tag, TI, OtherLang);
+
+	return TF.save();
+}
+
+bool Tagger::Tag(TrackInfo* TI, FXString& TagFN, FXString& Ext)
+{
+	FXString OtherLang;
+	bool Ret = false;
+
+	// Prepare strings
+	// ---------------
+	for(ushort c = 0; c < 2; c++)	{Comment[c] = TI->GetComment(c);	Comment[c].substitute("\n", "\r\n");}
+
+	if(Lang == LANG_JP)	OtherLang = "EN";
+	else				OtherLang = "JP";
+	// ---------------
+
+	wchar_t* WFN = new FXnchar[TagFN.length() + 1];
+	utf2ncs(WFN, TagFN.length() + 1, TagFN.text(), TagFN.length() + 1);
+
+	     if(Ext == "flac")	Ret = FLACTag(TI, WFN, OtherLang);
+	else if(Ext == "ogg")	Ret = OGGTag(TI, WFN, OtherLang);
+	else if(Ext == "mp3")	Ret = MP3Tag(TI, WFN, OtherLang);
+
+	SAFE_DELETE_ARRAY(WFN);
+
+	return Ret;
+}
+// =======
+
+// Tagger
+// ------
+bool Tagger::Search(TrackInfo* TI, const FXString& Ext, FXString* FN)
+{
+	FXString* Files = NULL;
+	FXint FileCount = 0;
+	wchar_t* WFN = NULL;
+	TagLib::File* Test = NULL;
+	uint TNo;
+	TagLib::String TAlbum;
+	bool Ret = false;
+
+	FileCount = FXDir::listFiles(Files, OutPath, "*." + Ext, FXDir::NoDirs | FXDir::CaseFold | FXDir::HiddenFiles);
+	for(int c = 0; c < FileCount; c++)
+	{
+		WFN = new FXnchar[Files[c].length() + 1];
+		utf2ncs(WFN, Files[c].length() + 1, Files[c].text(), Files[c].length() + 1);
+
+		// I HATE YOU, TAGLIB... just kidding, you're mostly awesome.
+		     if(Ext == "flac")	Test = new TagLib::FLAC::File(WFN);
+		else if(Ext == "ogg")	Test = new TagLib::Vorbis::File(WFN);
+		else if(Ext == "mp3")	Test = new TagLib::MPEG::File(WFN);
+
+		TNo = Test->tag()->track();
+		TAlbum = Test->tag()->album();
+
+		if( ((TAlbum == ActiveGame->Name[LANG_JP].text()) || (TAlbum == ActiveGame->Name[LANG_EN].text())) && TNo == TI->Number)
+		{
+			*FN = Files[c];
+			c = FileCount;
+			Ret = true;
+		}
+
+		SAFE_DELETE(Test);
+		SAFE_DELETE_ARRAY(WFN);
+	}
+	SAFE_DELETE_ARRAY(Files);
+
+	return Ret;
+}
+
+FXint Tagger::run()
+{
+	FXString FN, Stat, Ext;
+	TrackInfo* Track;
+	StopReq = false;
+	Active = true;
+
+	Ext = Encoders.Get(EncFmt - 1)->Data.Name.lower();
+	
+	Stat.format("Updating tags...\nDirectory: %s\n----------------", OutPath);
+	MW->PrintStat(Stat);
+
+	ListEntry<TrackInfo>* CurTrack = ActiveGame->Track.First();
+
+	do
+	{
+		Track = &CurTrack->Data;
+		if(!Track || Track->Start[0] == 0)	continue;
+
+		MW->PrintStat("\n");
+
+		FN = PatternFN(Track);
+
+		if(!FXStat::exists(FN))
+		{
+			// If someone uses %name_en% and the translation changes, of course we won't find the track anymore *facepalm*
+			// Let's try to find it...
+			if(Search(Track, Ext, &FN))
+			{
+				Stat.format("#%d: Tagging %s (found by automatic search)...", Track->Number, FN);
+			}
+			else
+			{
+				Stat.format("#%d: ERROR: %s not found!", Track->Number, FN);
+				MW->PrintStat(Stat);
+				continue;
+			}
+		}
+		else	Stat.format("#%d: Tagging %s...", Track->Number, FN);
+		MW->PrintStat(Stat);
+		
+		if(!Tag(Track, FN, Ext))
+		{
+			Stat.format("\n%s, tags not written!", WriteError);
+			MW->PrintStat(Stat);
+		}
+	}
+	while( (CurTrack = CurTrack->Next()) && !StopReq);
+
+	MW->handle(this, FXSEL(SEL_COMMAND, MW->MW_EXT_FINISH), NULL);
+
+	Stat = "\n----------------\n";
+	if(!StopReq)	Stat.append("Updating finished.\n");
+	else			Stat.append("Updating stopped.\n");
+	MW->PrintStat(Stat);
+
+	StopReq = Active = false;
+	detach();
+
+	return 1;
+}
+
+void Tagger::Stop()
+{
+	StopReq = true;
+}
+// ------

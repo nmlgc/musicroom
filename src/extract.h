@@ -7,46 +7,65 @@
 extern const ushort WAV_HEADER_SIZE;
 extern const ulong WAIT_INTERVAL;
 
-class Extractor
+class Extractor : public FXThread, FXObject
 {
-protected:
-	Extractor()	{}
+private:
+	// We don't want to leak everything in case we're canceled
+	char* Buf;
+	FX::FXFile In, Out;
 
-	bool Active;
+protected:
 	short Cur, Last;
 
 	ListEntry<TrackInfo>* CurTrack;
 
 	FXString DumpFN;	// Temporary extraction wave file, created in a temporary directory (e.g. extract.wav)
 	FXString EncFN; 	// Temporary path to the encoded file in the temporary directory (e.g. extract.mp3)
-	FXString OutFN;		// Final encoded output file
 	FXString Ext;		// Final file extension
-	Encoder* Enc;
-
-	uint Ret;	// Dialog box return value
-
+	
 #ifdef WIN32
 	PROCESS_INFORMATION PI;
 #endif
 
-	uint ExtractStep1(TrackInfo* TI);	// Single track extraction main function
-	void ExtractStep2(TrackInfo* TI);	// Stuff done after encoding
-	uint Cleanup();	// Removes temporary files
+	uint ExtractStep1(TrackInfo* TI, FXString& OutFN);	// Single track extraction main function
+	uint ExtractStep2(TrackInfo* TI, FXString& OutFN);	// Stuff done after encoding
+	bool Finish();	// Only called by the thread function
 
 public:
-	bool ExtProc();	// Process callback
+	Encoder* Enc;
+	bool Active;
+	volatile uint Ret;	// Dialog box return value
 
-	bool ExtractTrack(TrackInfo* TI);	// Return value wrapper
-
-	void Tag(TrackInfo* TI, FXString& TagFN, FXString& Ext);
+	virtual FXint run();	// FOX Thread function. Runs the extraction loop
 
 	bool Start(short ExtStart, short ExtEnd);
-	bool Next();	// Initiates extraction of the next track
-	bool Finish();
+	void Stop(FXString* Msg = NULL, bool ThreadCall = false);
 
-	static Extractor& Inst()
-	{
-		static Extractor Instance;
-		return Instance;
-	}
+	uint Cleanup();	// Removes temporary files
+
+	SINGLETON(Extractor);
+
+};
+
+class Tagger : public FXThread, FXObject
+{
+protected:
+	volatile bool StopReq;
+
+	bool FLACTag(TrackInfo* TI, wchar_t* FN, FXString& OtherLang);
+	bool OGGTag(TrackInfo* TI, wchar_t* FN, FXString& OtherLang);
+	bool MP3Tag(TrackInfo* TI, wchar_t* FN, FXString& OtherLang);
+
+	bool Search(TrackInfo* TI, const FXString& Ext, FXString* FN);	// Searches for a file which might match the given track
+
+public:
+	FXString Ext;
+	bool Active;
+
+	virtual FXint run();	// FOX Thread function. Runs the extraction loop
+
+	bool Tag(TrackInfo* TI, FXString& TagFN, FXString& Ext);
+	void Stop();
+
+	SINGLETON(Tagger);
 };

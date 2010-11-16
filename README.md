@@ -19,6 +19,8 @@ having existed as a separate library before 2.0.
 
 * Use CMake to generate a Visual Studio x86 (non-Win64) solution for taglib.
   Make sure you've selected the `ENABLE_STATIC` option before generating.
+* Use the provided `libs/vc6libcurl.dsw` solution to build curl. (The Git
+  checkout requires automake for auto-generating it.)
 * Convert all other Visual Studio solutions to the current version. With FOX,
   you only need to convert `fox.dsp` and `reswrap.dsp`, you can disable all
   other projects to save time.
@@ -52,42 +54,28 @@ having existed as a separate library before 2.0.
 * Add `HAVE_STRTOLL` and `HAVE_STRTOULL` to the list of `#define`'d preprocessor
   macros for the `fox` project at *C/C++ → Preprocessor → Preprocessor
   Definitions*.
-* You will later run into problems with FXAtomic and the Interlocked family of
-  functions. This should work around those:
-
-```diff
-diff --git a/include/FXAtomic.h b/include/FXAtomic.h
-index 31d89b34..dd4c22ce 100644
---- a/include/FXAtomic.h
-+++ b/include/FXAtomic.h
-@@ -21,6 +21,47 @@
- #ifndef FXATOMIC_H
- #define FXATOMIC_H
-
-+#ifdef WIN32
-+typedef long LONG;
-+
-+LONG InterlockedExchange(LONG volatile *, LONG);
-+LONG InterlockedExchangeAdd(LONG volatile *, LONG);
-+LONG InterlockedCompareExchange(LONG volatile *, LONG, LONG);
-+LONG InterlockedAdd(LONG volatile *, LONG);
-+LONG InterlockedOr(LONG volatile *, LONG);
-+LONG InterlockedAnd(LONG volatile *, LONG);
-+LONG InterlockedXor(LONG volatile *, LONG);
-+
-+#endif
-+
-
- namespace FX {
-```
 
 ### Fixes for the BGM extractor itself (`thbgmext.sln`)
+
+* Remove the redefinition of `int32_t` from `mt.hpp`:
+
+```diff
+--- a/src/mt.hpp
++++ b/src/mt.hpp
+@@ -4,7 +4,6 @@
+ #ifndef MT_HPP
+ #define MT_HPP
+
+-typedef long int32_t;
+ typedef unsigned short uint16_t;
+ typedef unsigned char   uint8_t;
+```
 
 * Make sure to consistently set the same *C/C++ → Code Generation → Runtime
   Library* option you also used for the dependent libraries.
 
-* Add `FLOAT_MATH_FUNCTIONS` and `TAGLIB_STATIC` to the list of `#define`'d
-  preprocessor macros at *C/C++ → Preprocessor → Preprocessor Definitions*.
+* Add `FLOAT_MATH_FUNCTIONS` to the list of `#define`'d preprocessor macros at
+  *C/C++ → Preprocessor → Preprocessor Definitions*.
 
 * Point the compiler to the subdirectories of all dependencies by adding the
   following to the list at *C/C++ → General → Additional Include Directories*,
@@ -97,6 +85,7 @@ index 31d89b34..dd4c22ce 100644
   $(SolutionDir)..\libs\fox\include\
   $(SolutionDir)..\libs\ogg\include\
   $(SolutionDir)..\libs\vorbis\include\
+  $(SolutionDir)..\libs\curl\include\curl\
   $(SolutionDir)..\libs\taglib_mod\taglib\
   $(SolutionDir)..\libs\taglib_mod\taglib\toolkit\
   $(SolutionDir)..\libs\taglib_mod\taglib\ogg\
@@ -113,8 +102,8 @@ index 31d89b34..dd4c22ce 100644
   not needed, so just remove it from the link dependency list at *Linker → Input
   → Additional Dependencies*.
 
-  Also change `tagdll.lib` to `tag.lib` in the Release build's link dependency
-  list.
+  "fox_nopng" doesn't imply any other necessary changes; just use the normal
+  FOX .lib file.
 
 * Place the compiled binary into the `dist/` directory, since it absolutely
   needs `thbgmext.cfg` to run.

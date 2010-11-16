@@ -3,6 +3,27 @@
 Changelog
 ----------------------------
 
+- 2010/11/16
+* The "Yes" option in the Wiki update dialog is actually working now. Seems like I failed logic yet again.
+* You may now enter fractional fade durations
+
+- 2010/10/29
+* Fixed a fatal bug with IaMP which would hang the system in a very gruesome manner if one tried to load that game
+* Fixed high CPU usage in playing mode
+
+- 2010/10/28
+* Option to pull updated track info from the Touhou Wiki
+* Tag update function, which directly writes track info without re-encoding everything
+
+* Added support for Kioh Gyoku, MegaMari and PatchCon...
+* ... and modified some BGM info config keys to manage that
+* Added a BGM template file if anyone is interested in adding support for other games I don't have
+
+* More friendly handling of trial versions by testing available tracks
+* Extraction and tag update processes run in extra threads now, and you can stop those any time
+* Countless GUI improvements and smaller bugs fixed
+* We have an official link now, yay~
+
 - 2010/09/15
 * Fixed a number of GUI inconveniences. The extraction processes now don't deadlock the GUI anymore.
 

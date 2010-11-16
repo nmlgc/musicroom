@@ -7,13 +7,14 @@
 #include "thbgmext.h"
 #include "config.h"
 
-void PM_BGMDat::ParseGameInfo(ConfigFile &NewGame, GameInfo *GI)
+bool PM_BGMDat::ParseGameInfo(ConfigFile &NewGame, GameInfo *GI)
 {
-	NewGame.GetValue("game", "zwavid_08", TYPE_UCHAR, (void*)&GI->ZWAVID[0]);
-	NewGame.GetValue("game", "zwavid_09", TYPE_UCHAR, (void*)&GI->ZWAVID[1]);
-	NewGame.GetValue("game", "bgmfile", TYPE_STRING, (void*)TempStr);	GI->BGMFile = TempStr;	TempStr[0] = '\0';
+	NewGame.GetValue("game", "zwavid_08", TYPE_UCHAR, &GI->ZWAVID[0]);
+	NewGame.GetValue("game", "zwavid_09", TYPE_UCHAR, &GI->ZWAVID[1]);
+	NewGame.GetValue("game", "bgmfile", TYPE_STRING, &GI->BGMFile);
 
 	PMGame.Add(&GI);
+	return true;
 }
 
 bool PM_BGMDat::ParseTrackInfo(ConfigFile &NewGame, GameInfo *GI, const char* TN, TrackInfo *NewTrack)

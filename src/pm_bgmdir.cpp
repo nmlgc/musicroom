@@ -7,18 +7,20 @@
 #include "thbgmext.h"
 #include "config.h"
 
-void PM_BGMDir::ParseGameInfo(ConfigFile &NewGame, GameInfo *GI)
+bool PM_BGMDir::ParseGameInfo(ConfigFile &NewGame, GameInfo *GI)
 {
-	NewGame.GetValue("game", "bgmdir", TYPE_STRING, (void*)TempStr);	GI->BGMDir = TempStr;	TempStr[0] = '\0';
+	NewGame.GetValue("game", "bgmdir", TYPE_STRING, &GI->BGMDir);
 
 	GI->BGMFile.clear();
 
 	PMGame.Add(&GI);
+
+	return true;
 }
 
 bool PM_BGMDir::ParseTrackInfo(ConfigFile &NewGame, GameInfo *GI, const char* TN, TrackInfo *NewTrack)
 {
-	NewGame.GetValue(TN, "filename", TYPE_STRING, (void*)TempStr);	NewTrack->FN = TempStr;
+	NewGame.GetValue(TN, "filename", TYPE_STRING, &NewTrack->FN);
 	NewTrack->Start[0] = GI->HeaderSize;
 
 	return true;	// Read position info from parsed file

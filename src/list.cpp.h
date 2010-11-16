@@ -2,10 +2,29 @@
 // -------------
 // list.cpp.h - Defines template list and stack classes (Template Implementation)
 // -----------
-// "©" David Scherfgen 2004, Terriermon 2005, Nameless 2007-2009
+// "©" David Scherfgen 2004, Terriermon 2005, Nameless 2007-2010
 
 #ifndef LEGACY_LIST_CPP_H
 #define LEGACY_LIST_CPP_H
+
+// ListEntry Classes
+// -----------------
+template <typename Type> void ListEntry<Type>::SetData(const Type* pData, ulong Reserved)
+{
+	if(pData)	memcpy(&Data, pData, sizeof(Type));
+}
+
+template <typename Type> void PListEntry<Type>::SetData(const Type* pData, ulong NewSize)
+{
+	if(NewSize != Size)
+	{
+		SAFE_DELETE_ARRAY(Data);
+		Size = NewSize;
+		Data = new Type[Size];
+	}
+	memcpy(Data, pData, sizeof(Type) * Size);
+}
+// -----------------
 
 // List Base Class
 // ---------------
@@ -34,17 +53,17 @@ template <typename Type> BaseListEntry<Type>* BaseList<Type>::AppendEntry()
 	BaseListEntry<Type>* pNewEntry = (BaseListEntry<Type>*)NewEntry();
 	if(!pNewEntry)	return NULL;
 
-	// Der neue Eintrag steht an letzter Stelle der Liste.
-	// Daher gibt es keinen nächsten Eintrag und der vorherige Eintrag ist der ursprüngliche letzte Listeneintrag.
+	// The new entry is the last one of the list.
+	// Thus there's no next entry and the previous one of this one is the originally last one.
 	pNewEntry->pPrevEntry = pLast;
 	if(pLast) pLast->pNextEntry = pNewEntry;
 	pNewEntry->pNextEntry = NULL;
 	pLast = pNewEntry;
 
-	if(!pFirst) pFirst = pNewEntry;	// Wenn die Liste noch ganz leer ist, dann ist dieser Eintrag der erste Eintrag
+	if(!pFirst) pFirst = pNewEntry;	// If the list is empty, this entry is the first one
 
 	NumEntries++;
-	return pNewEntry;					// Zeiger auf die Listeneintragsstruktur zurückliefern
+	return pNewEntry;
 }
 
 template <typename Type> BaseListEntry<Type>* BaseList<Type>::InsertEntry(BaseListEntry<Type>* pPrev)
@@ -87,8 +106,8 @@ template <typename Type> BaseListEntry<Type>* BaseList<Type>::BaseDelete(BaseLis
 	
 	BaseListEntry<Type>* r = pEntry->pNextEntry;
 
-	// Beim Löschen entsteht ein Loch in der Liste, welches nun "gestopft" werden muss. Dabei spielt es eine Rolle, ob der Eintrag an erster
-	// oder letzter Stelle oder irgendwo in der Mitte der Liste steht.
+	// By deleting an entry, we cause a "hole" in the list, and have to relink the previous and next entries
+	// according to the position of the entry to be deleted.
 	if(pEntry == pFirst && pEntry == pLast)
 	{
 		// The entry is the first and only one
@@ -97,22 +116,22 @@ template <typename Type> BaseListEntry<Type>* BaseList<Type>::BaseDelete(BaseLis
 	}
 	else if(pEntry == pFirst)
 	{
-		// Der Eintrag steht an erster Stelle.
-		// Der neue erste Eintrag ist nun der Folgende des zu löschenden Eintrags.
+		// This entry is the first one.
+		// The new first entry is the next entry of this one.
 		pFirst = pEntry->pNextEntry;
 		pFirst->pPrevEntry = NULL;
 	}
 	else if(pEntry == pLast)
 	{
-		// Der Eintrag steht an letzter Stelle.
-		// Der neue letzte Eintrag ist nun der Vorherige des zu löschenden Eintrags.
+		// This entry is the last one.
+		// The new last entry is the previous entry of this one.
 		pLast = pEntry->pPrevEntry;
 		pLast->pNextEntry = NULL;
 	}
 	else
 	{
-		// Der Eintrag steht irgendwo in der Mitte.
-		// Der vorherige und der folgende Eintrag werden nun verknüpft.
+		// The entry is somewhere inbetween.
+		// The previous and next entry of this one get linked accordingly.
 		pEntry->pPrevEntry->pNextEntry = pEntry->pNextEntry;
 		pEntry->pNextEntry->pPrevEntry = pEntry->pPrevEntry;
 	}
@@ -131,35 +150,29 @@ template <typename Type> BaseListEntry<Type>* List<Type>::NewEntry()
  	return new ListEntry<Type>;
 }
 
-template <typename Type> void List<Type>::SetEntryData(BaseListEntry<Type>* Entry, const Type* pData, ulong Reserved)
-{
-	ListEntry<Type>* pNewEntry = (ListEntry<Type>*)Entry;
-	if(pData)	memcpy(&pNewEntry->Data, pData, sizeof(Type));
-}
-
-// Neuen Listeneintrag hinzufügen
+// Append entry
 template <typename Type> ListEntry<Type>* List<Type>::Add(const Type* pData)
 {
 	ListEntry<Type>* pNewEntry = (ListEntry<Type>*)BaseList<Type>::AppendEntry();
 	if(!pNewEntry)	return NULL;
 
-	SetEntryData(pNewEntry, pData);
+	pNewEntry->SetData(pData);
 
 	return pNewEntry;
 }
 
-// Neuen Listeneintrag einfügen
+// Insert an entry after the given one
 template <typename Type> ListEntry<Type>* List<Type>::Insert(ListEntry<Type>* pPrev, const Type* pData)
 {
 	ListEntry<Type>* pNewEntry =(ListEntry<Type>*)InsertEntry(pPrev);
 	if(!pNewEntry)	return NULL;
 
-	SetEntryData(pNewEntry, pData);	// Daten kopieren
+	pNewEntry->SetData(pData);
 
 	return pNewEntry;
 }
 
-// Sucht einen Eintrag in der Liste mit den angegebenen Daten
+// Search for an entry with the given data
 template <typename Type> ListEntry<Type>* List<Type>::Find(Type* pData)
 {
 	ListEntry<Type>* CurEntry = First();
@@ -168,7 +181,6 @@ template <typename Type> ListEntry<Type>* List<Type>::Find(Type* pData)
 
 	while(CurEntry)
 	{
-		// Die Daten des aktuellen Eintrags mit den angegebenen Daten vergleichen. Falls sie übereinstimmen, ist die Suche beendet.
 		if(!memcmp(&CurEntry->Data, pData, sizeof(Type)))
 		{
 			return CurEntry;
@@ -176,7 +188,7 @@ template <typename Type> ListEntry<Type>* List<Type>::Find(Type* pData)
 		CurEntry = CurEntry->Next();
 	}
 
-	// Es wurde nichts gefunden!
+	// No entry was found!
 	return 0;
 }
 
@@ -193,11 +205,11 @@ template <typename Type> ListEntry<Type>* List<Type>::Delete(ListEntry<Type>* pE
 	return r;
 }
 
-// Setzt die Liste auf eine bestimmte Größe
+// Resize list
 template <typename Type> void List<Type>::Resize(ulong Size)
 {
 	ulong Count;
-	ulong Entries = BaseList<Type>::NumEntries;	// Die Anzahl der Einträge verändert sich ja... ;-)
+	ulong Entries = BaseList<Type>::NumEntries;	// Yeah, the entry count does indeed change... ;-)
 
 	if(Size > Entries)
 	{
@@ -233,16 +245,22 @@ template <typename Type> ulong List<Type>::MemSize()
 }
 
 // Delete first entry
-template <typename Type> ListEntry<Type>* List<Type>::Pop()
+template <typename Type> ListEntry<Type>* List<Type>::PopFirst()
 {
 	return Delete(First());
 }
 
-// Gesamte Liste löschen
+// Delete first entry
+template <typename Type> ListEntry<Type>* List<Type>::PopLast()
+{
+	return Delete(Last());
+}
+
+// Delete entire list
 template <typename Type> void List<Type>::Clear()
 {
-	// Es wird so lange der erste Listeneintrag gelöscht, bis keiner mehr da ist
-	while(First())	Pop();
+	// Delete the first entry until none is there
+	while(First())	PopFirst();
 }
 // -----------
 
@@ -255,21 +273,13 @@ template <typename Type> BaseListEntry<Type>* PList<Type>::NewEntry()
 	return new PListEntry<Type>;
 }
 
-template <typename Type> void PList<Type>::SetEntryData(BaseListEntry<Type>* Entry, const Type* pData, ulong Size)
-{
-	PListEntry<Type>*	pNewEntry = (PListEntry<Type>*)Entry;
-	pNewEntry->Data = new Type[Size];
-	memcpy(pNewEntry->Data, pData, sizeof(Type) * Size);
-	pNewEntry->Size = Size;
-}
-
 // Add a new list entry
 template <typename Type> PListEntry<Type>* PList<Type>::Add(const Type* pData, ulong Size)
 {
 	PListEntry<Type>* pNewEntry = (PListEntry<Type>*)BaseList<Type>::AppendEntry();
 	if(!pNewEntry)	return NULL;
 
-	SetEntryData(pNewEntry, pData, Size);
+	pNewEntry->SetData(pData, Size);
 
 	return pNewEntry;
 }
@@ -280,7 +290,7 @@ template <typename Type> PListEntry<Type>* PList<Type>::Insert(PListEntry<Type>*
 	PListEntry<Type>* pNewEntry = (PListEntry<Type>*)InsertEntry(pPrev);
 	if(!pNewEntry)	return NULL;
 
-	SetEntryData(pNewEntry, pData, Size);
+	pNewEntry->SetData(pData, Size);
 
 	return pNewEntry;
 }
@@ -335,10 +345,10 @@ template <typename Type> bool PList<Type>::Copy(PList<Type>* Source, bool Append
 	return true;
 }
 
-// Gesamte Liste löschen
+// Delete entire list
 template <typename Type> void PList<Type>::Clear()
 {
-	// Es wird so lange der erste Listeneintrag gelöscht, bis keiner mehr da ist
+	// Delete the first entry until none is there
 	while(First())	Pop();
 }
 
@@ -368,7 +378,7 @@ template <typename Type> ListEntry<Type>* Stack<Type>::Add(Type* pData)
 
 	if(List<Type>::NumEntries == StackSize)	List<Type>::Delete(List<Type>::pFirst);
 
-	SetEntryData(pNewEntry, pData);
+	pNewEntry->SetEntryData(pData);
 
 	return pNewEntry;
 }

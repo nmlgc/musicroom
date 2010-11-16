@@ -22,6 +22,8 @@ class MainWnd : public FXMainWindow
 {
 	FXDECLARE(MainWnd);
 
+	friend class Extractor;
+
 private:
 	MainWnd()	{}
 
@@ -54,6 +56,9 @@ protected:
 		FXHorizontalFrame* LangFrame;
 		FXRadioButton*	LangBT[2];
 
+		FXDataTarget WikiDT;
+		FXCheckButton*	GetWiki;
+
 	FXGroupBox* PatternBox;
 		FXTextField* FNField;
 		FXLabel*	FNExample;
@@ -66,7 +71,7 @@ protected:
 		FXHorizontalFrame* LoopFrame;
 			FXSpinner* LoopField;
 		FXHorizontalFrame* FadeFrame;
-			FXSpinner* FadeField;
+			FXRealSpinner* FadeField;
 		FXCheckButton* RemoveSilence;
 
 	FXGroupBox* OutDirBox;
@@ -77,6 +82,8 @@ protected:
 	FXVerticalFrame* StartFrame;
 		FXButton* StartAll;
 		FXButton* StartSel;
+		FXButton* TagUpdate;
+		FXButton* Stop;
 		
 	FXGroupBox* EncBox;
 		FXVerticalFrame* EncFrame;
@@ -85,38 +92,52 @@ protected:
 		FXLabel*	EncMsg;
 
 	FXGroupBox*	StatBox;
-		FXPacker*	StatFrame;
+		FXVerticalFrame*	StatFrame;
 		FXText*  	Stat;
 
+	bool CheckOutDir();
+
 	void SetTextViewColors(FXText* Text);	// Sets this cool inverted color scheme
+
+	void SetComment(TrackInfo* TI);
 
 public:
 	MainWnd(FXApp* App);
 
+	bool CFGFail;
+
 	enum
 	{
-		MW_PARSEDIR = FXMainWindow::ID_LAST,
-		MW_LOADGAME,
+		// GUI
+		MW_CHANGE_ACTION_STATE = FXMainWindow::ID_LAST,
+		MW_STOP_SHOW,
+
 		MW_FILLTABLE_BASIC,
 
 		MW_UPDATE_STRINGS,
 		MW_UPDATE_STRINGS_END = MW_UPDATE_STRINGS + 1,
-
 		MW_UPDATE_LENGTHS,
 
-		MW_CHANGE_TRACK,
+		MW_FN_PATTERN,
 
+		MW_PARSEDIR,
+		MW_LOADGAME,
+		
+		MW_CHANGE_TRACK,
+		
 		MW_TOGGLE_PLAY,
 		MW_STREAM,
-
-		MW_FN_PATTERN,
 
 		MW_UPDATE_ENC,
 		MW_UPDATE_ENC_END = MW_UPDATE_ENC + 16,
 
 		MW_OUTDIR,
-		MW_EXTRACT,
-		MW_EXTPROC,
+		// Actions
+		MW_EXTRACT_ALL,
+		MW_EXTRACT_SEL,
+		MW_TAG_UPDATE,
+		MW_STOP,
+		MW_EXT_MSG,
 		MW_EXT_FINISH,
 
 		ID_LAST 
@@ -125,22 +146,28 @@ public:
 	void create();
 	void destroy();
 
-	MESSAGE_FUNCTION(onParseDir);
-	MESSAGE_FUNCTION(onLoadGame);
+	MESSAGE_FUNCTION(onChangeActionState);
+	MESSAGE_FUNCTION(onStopShow);
 	MESSAGE_FUNCTION(onFillTableBasic);
 	MESSAGE_FUNCTION(onCmdStrings);	// Updates all string labels with the set language
 	MESSAGE_FUNCTION(onUpdStrings);	// Updates all string labels with the set language
 	MESSAGE_FUNCTION(onCmdLengths);	// Calculate track lengths based on loop count and fade duration
+	MESSAGE_FUNCTION(onFNPattern);
+	MESSAGE_FUNCTION(onParseDir);
+	MESSAGE_FUNCTION(onLoadGame);
 	MESSAGE_FUNCTION(onChangeTrack);
 	MESSAGE_FUNCTION(onTogglePlay);
 	MESSAGE_FUNCTION(onStream);
-	MESSAGE_FUNCTION(onFNPattern);
 	MESSAGE_FUNCTION(onUpdEnc);	// Updates all string labels with the set language
 	MESSAGE_FUNCTION(onSelectOutDir);
 	MESSAGE_FUNCTION(onExtractTrack);
 	MESSAGE_FUNCTION(onExtract);
-	MESSAGE_FUNCTION(onExtProc);
+	MESSAGE_FUNCTION(onTagUpdate);
+	MESSAGE_FUNCTION(onStop);
+	MESSAGE_FUNCTION(onExtMsg);
 	MESSAGE_FUNCTION(onExtFinish);
+
+	GameInfo* LoadGame(FXString NewGameDir);
 
 	void PrintStat(FXString NewStat);
 };

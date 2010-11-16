@@ -22,31 +22,56 @@
 
 struct ConfigKey
 {
-	char	Key[64];
-	FXString Data;
+	friend class ConfigParser;
+	friend class ConfigFile;
 
+protected:
+	FXString Key;
+	void*	Data;
+	ushort	DataType;
+
+	FXString Line;	// Storage for the value read from the config file
+
+	bool	SaveData(FXString* SaveLine);
+
+public:
 	ConfigKey();
-	ConfigKey(const char* _Key_);
+	ConfigKey(FXString& Key, void* Data, ushort DataType);
 
-	void	SetData(char* Parse);
-	void	GetData(ushort DataType, void* Trg);
-	void	SetInfo(const char* _Key_);
+	void	Link(void* Data, ushort DataType);	// Links this key to the [DataType] variable [Data]. On ConfigFile::Save, the current value of [Data] gets automatically written
+	void	SetInfo(FXString& Key, void* Data, ushort DataType);
+
+	bool	GetData(void* Data, ushort DataType, FXString* Line = NULL);	// Parses the value of [Line] and writes it to the [DataType] variable [Data]
 };
 
 template class List<ConfigKey>;
+
+#define ADD_KEY(Type)	ConfigKey* AddKey(FXString& Key, Type* Data)
 
 class ConfigParser
 {
 	friend class ConfigFile;
 
 protected:
-	char	Caption[64];	// Section Name
+	FXString	Caption;	// Section Name
 
 	List<ConfigKey>	Keys;
 
 public:
 	void	Save();
 	void	Load();
+
+	void	SetCaption(FXString& Caption);
+
+	ADD_KEY(bool);
+	ADD_KEY(short);
+	ADD_KEY(ushort);
+	ADD_KEY(int);
+	ADD_KEY(uint);
+	ADD_KEY(long);
+	ADD_KEY(ulong);
+	ADD_KEY(float);
+	ADD_KEY(FXString);
 
 	ConfigKey*	FindKey(char* Name);
 
@@ -56,16 +81,25 @@ public:
 	~ConfigParser();
 };
 
+struct LineLink
+{
+	int Line;
+	ConfigKey* Key;
+};
+
 class ConfigFile
 {
 	friend class ConfigParser;
 
 protected:
 	PList<char>	FileBuffer;
-	List<ConfigParser>	Section;
-	char		ConfigFN[256];
+	List<ConfigParser> Sect;	// Automatically created sections
+	List<LineLink> Link;	// Sequentially stored line-key links
+	char*		ConfigFN;
 
+	void	SetFN(const char* FN);
 	bool	BufferFile();
+	bool	WriteBuffer();
 
 	PListEntry<char>*	InsertLine(PListEntry<char>* PrevLine, char* NewLine);	// Inserts a new line into the buffer
 
@@ -74,8 +108,16 @@ protected:
 
 public:
 	void	Load();
+	bool	Load(const char* FN);
 
-	bool	GetValue(const char* Section, char* Key, ushort DataType, void* Value);
+	char*	GetFN()	{return ConfigFN;}
+
+	ConfigKey* FindKey(const char* Section, char* Key);
+
+	bool	 GetValue(const char* Section, char* Key, ushort DataType, void* Value);	// Stores the parsed value of [Key] in [Section] in the [DataType] variable [Value]. Should only be used if [Value] is local or you're not going to save anyway
+	bool	LinkValue(const char* Section, char* Key, ushort DataType, void* Value);	// Links [Key] in [Section] to the [DataType] variable [Value]. On ConfigFile::Save, the current value of [Value] gets automatically written
+
+	bool	Save();
 
 	void	Clear();
 

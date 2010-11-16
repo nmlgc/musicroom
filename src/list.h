@@ -2,7 +2,7 @@
 // -------------
 // list.h - Defines template list and stack classes
 // -----------
-// "©" David Scherfgen 2004, Terriermon 2005, Nameless 2007-2009
+// "©" David Scherfgen 2004, Terriermon 2005, Nameless 2007-2010
 
 #ifndef LEGACY_LIST_H
 #define LEGACY_LIST_H
@@ -19,6 +19,8 @@ template <typename Type> struct BaseListEntry
 	BaseListEntry()		{pPrevEntry = pNextEntry = NULL;}
 	virtual ulong MemSize() = 0;
 
+	virtual	void	SetData(const Type* Data, ulong Reserved = 0) = 0;
+
 	virtual ~BaseListEntry()	{}
 };
 
@@ -29,6 +31,8 @@ template <typename Type> struct ListEntry : public BaseListEntry<Type>
 	ListEntry<Type>*	Prev()	{return (ListEntry<Type>*)BaseListEntry<Type>::pPrevEntry;}
 	ListEntry<Type>*	Next()	{return (ListEntry<Type>*)BaseListEntry<Type>::pNextEntry;}
 	ulong	MemSize()			{return sizeof(BaseListEntry<Type>*) * 2 + sizeof(Type);}
+
+	void	SetData(const Type* Data, ulong Reserved = 0);
 };
 
 template <typename Type> struct PListEntry : public BaseListEntry<Type>
@@ -39,6 +43,8 @@ template <typename Type> struct PListEntry : public BaseListEntry<Type>
 	PListEntry<Type>*	Prev()	{return (PListEntry<Type>*)BaseListEntry<Type>::pPrevEntry;}
 	PListEntry<Type>*	Next()	{return (PListEntry<Type>*)BaseListEntry<Type>::pNextEntry;}
 	ulong	MemSize()			{return sizeof(BaseListEntry<Type>*) + sizeof(Type*) + sizeof(ulong) + Size;}
+
+	void	SetData(const Type* Data, ulong Size);
 
 	PListEntry()	{Data = NULL; Size = 0;}
 	~PListEntry()	{SAFE_DELETE_ARRAY(Data);}
@@ -57,7 +63,6 @@ protected:
 			BaseListEntry<Type>*	GetBaseEntry(ulong Index);
 			BaseListEntry<Type>*	AppendEntry();
 			BaseListEntry<Type>*	InsertEntry(BaseListEntry<Type>* pPrev);
-	virtual	void	SetEntryData(BaseListEntry<Type>* Entry, const Type* Data, ulong Reserved = 0) = 0;
 	virtual BaseListEntry<Type>*	NewEntry() = 0;
 	
 public:
@@ -76,7 +81,6 @@ public:
 template <typename Type> class List : public BaseList<Type>
 {
 protected:
-	void	SetEntryData(BaseListEntry<Type>* Entry, const Type* Data, ulong Reserved = 0);
 	BaseListEntry<Type>*	NewEntry();
 
 public:
@@ -86,11 +90,12 @@ public:
 	~List();
 	
 	ListEntry<Type>*	Add(const Type* pData = NULL);					// Append entry
-	ListEntry<Type>*	Insert(ListEntry<Type>* pPrev, const Type* pData = NULL);	// Insert an entry after the given element
+	ListEntry<Type>*	Insert(ListEntry<Type>* pPrev, const Type* pData = NULL);	// Insert an entry after the given one
 	ListEntry<Type>*	Find(Type* pData);								// Search for entry with given data
 	ListEntry<Type>*	Get(ulong Index);
 	ListEntry<Type>*	Delete(ListEntry<Type>* pEntry);
-	ListEntry<Type>*	Pop();	// Deletes the first entry
+	ListEntry<Type>*	PopFirst();	// Delete first entry
+	ListEntry<Type>*	PopLast();	// Delete last entry
 	void				Clear();
 	void				Resize(ulong Size);
 	bool				Copy(List<Type>* Source, bool Append = false);
@@ -103,7 +108,7 @@ public:
 	ListEntry<Type>* operator []	(ulong EntryID)	{return Get(EntryID);}
 };
 
-#define ADD_THIS(List, x)	x* KeywordCloak = this; List.Add(&KeywordCloak);	// Fügt einen Klassenzeiger hinzu
+#define ADD_THIS(List, x)	x* KeywordCloak = this; List.Add(&KeywordCloak);	// Adds a class pointer
 // -----------
 
 // Pointer List - saves multiple elements of one type per entry
@@ -111,7 +116,6 @@ public:
 template <typename Type> class PList : public BaseList<Type>
 {
 protected:
-	void	SetEntryData(BaseListEntry<Type>* Entry, const Type* Data, ulong Size);
 	BaseListEntry<Type>*	NewEntry();
 
 public:
@@ -120,17 +124,17 @@ public:
 	PList(PList<Type>* Source)	{Copy(Source);}
 	~PList();
 
-	PListEntry<Type>*   Add(const Type* pData, ulong Size);		// Eintrag hinten an die Liste anhängen
-	PListEntry<Type>*   Insert(PListEntry<Type>* pPrev, const Type* pData, ulong Size);	// Eintrag nach einem bestimmten Element einfügen
-	PListEntry<Type>*   Find(Type* pData);								// Eintrag suchen
+	PListEntry<Type>*   Add(const Type* pData, ulong Size);		// Append entry
+	PListEntry<Type>*   Insert(PListEntry<Type>* pPrev, const Type* pData, ulong Size);	// Insert an entry after the given one
+	PListEntry<Type>*   Find(Type* pData);								// Search for entry with given data
 	PListEntry<Type>*   Get(ulong Index);
 	PListEntry<Type>*   Delete(PListEntry<Type>* pEntry);
 	PListEntry<Type>*	Pop();	// Deletes the first entry
 	void				Clear();
-	bool               Copy(PList<Type>* Source, bool Append = false);		// Kopiert eine Liste
+	bool               Copy(PList<Type>* Source, bool Append = false);		
 	ulong              MemSize();										// Returns size of the list in memory
 	
-	// Inline-Methoden
+	// Inline methods
 	PListEntry<Type>*   First()	{return (PListEntry<Type>*)BaseList<Type>::pFirst;}
 	PListEntry<Type>*   Last()	{return (PListEntry<Type>*)BaseList<Type>::pLast;}
 

@@ -227,15 +227,19 @@ void Streamer::StreamFrame_OGG()
 
 	if(FreeBlockCount < 2)	return;
 
-	if(ov_pcm_tell(&SF) >= Track->End)
-	{
-		ov_pcm_seek(&SF, Track->Loop);
-	}
-
 	Rem = ReadBufferSize;
 	while(Rem >= Ret && Ret > 0)
 	{
 		Ret = ov_read(&SF, &ReadBuffer[ReadBufferSize] - Rem, Rem, 0, 2, 1, &Sec);
+
+		ogg_int64_t Cur = ov_pcm_tell(&SF);
+
+		if(Cur >= Track->End)
+		{
+			ov_pcm_seek(&SF, Track->Loop);
+			Ret -= (Cur - Track->End) * 4;
+		}
+
 		Rem -= Ret;
 	}
 
@@ -281,10 +285,10 @@ bool Streamer::SwitchTrack_OGG(TrackInfo* NewTrack)
 	FN.append(ActiveGame->BGMFile);
 
 	BM.open(FN, FXIO::Reading);
-	PM_BMOgg::Inst().DumpOGG(BM, NewTrack->Start[0], NewTrack->FS);
+	PM_BMOgg::Inst().DumpOGG(BM, NewTrack->Start[0], NewTrack->FS, OGGPlayFile);
 	BM.close();
 
-	BGMFile = fopen(OGGDumpFile.text(), "rb");
+	BGMFile = fopen(OGGPlayFile.text(), "rb");
 
 	ov_open_callbacks(BGMFile, &SF, NULL, 0, OV_CALLBACKS_DEFAULT);
 	
@@ -326,7 +330,7 @@ void Streamer::CloseFile()
 		ov_clear(&SF);
 		fclose(BGMFile);
 		BGMFile = NULL;
-		FX::FXFile::remove(OGGDumpFile);
+		FX::FXFile::remove(OGGPlayFile);
 	}
 }
 

@@ -14,6 +14,10 @@
 	path = libs/taglib_mod
 	url = https://github.com/nmlgc/taglib_mod
 	shallow = true
+[submodule "libs/curl"]
+	path = libs/curl
+	url = https://github.com/curl/curl
+	shallow = true
 [submodule "libs/bgmlib"]
 	path = libs/bgmlib
 	url = https://github.com/nmlgc/bgmlib

@@ -1,6 +1,6 @@
 // Touhou Project BGM Extractor
 // ----------------------------
-// parse.cpp - Info File Parsing & Directory Scans
+// parse.cpp - Info File Parsing
 // ----------------------------
 // "©" Nameless, 2010
 
@@ -8,51 +8,140 @@
 #include "config.h"
 #include "stream.h"
 
-char PackMethod::TempStr[1024];
+// GameInfo
+// --------
+void GameInfo::Clear()
+{
+	Composer.Clear();
+	Track.Clear();
+	HaveTrackData = false;
+	Scanned = false;
+}
+
+GameInfo::GameInfo()
+{
+	HaveTrackData = false;
+	Scanned = false;
+}
+
+FXString GameInfo::FullName(ushort Lang)
+{
+	if(TrackCount == Track.Size())	return Name[Lang];
+	else							return Name[Lang] + Trial[Lang];
+}
+
+GameInfo::~GameInfo()
+{
+	Clear();
+}
+// --------
 
 ulong ParseSubstring(char* Split)
 {
 	FXString Conv = Split;
-	return Conv.toULong(BaseCheck(Conv));
+	return Conv.toULong(BaseCheck(&Conv));
 }
 
-void ParseGame(FXString InfoFile, GameInfo* GI)
+bool GameInfo::ParseGameData(FXString Info)
 {
-	FXString Stat;
-	char TempStr[2048];
+	FXString Str;
+
+	InfoFile = Info;
+	
+	ConfigFile NewGame(InfoFile.text());
+	NewGame.Load();
+
+	// Game Info
+	// ---------
+	NewGame.GetValue("game", "name", TYPE_STRING, &Name[LANG_JP]);
+	NewGame.GetValue("game", "name_en", TYPE_STRING, &Name[LANG_EN]);
+	NewGame.GetValue("game", "packmethod", TYPE_USHORT, &PackMethod);
+	NewGame.GetValue("game", "encryption", TYPE_UCHAR, &CryptKind);
+	NewGame.GetValue("game", "entrysize", TYPE_USHORT, &EntrySize);
+	NewGame.GetValue("game", "headersize", TYPE_USHORT, &HeaderSize);
+	NewGame.GetValue("game", "gamenum", TYPE_STRING, &GameNum);
+
+	NewGame.GetValue("game", "tracks", TYPE_USHORT, &TrackCount);
+	
+	if(PackMethod > PM_COUNT)
+	{
+		Str.format("ERROR: Invalid BGM packing method specified in %s!\n", InfoFile);
+		MW->PrintStat(Str);
+		return false;
+	}
+	else if(!PM[PackMethod]->ParseGameInfo(NewGame, this))
+	{
+		return false;
+	}
+
+	Str.format("%s (%s)\n", Name[Lang], InfoFile.text());
+	MW->PrintStat(Str);
+	return true;
+}
+
+bool GameInfo::ParseTrackData()
+{
+	FXString Str, Key;
 	ulong TempVal;
 
 	PList<char> Split;
 	PListEntry<char>* CurSS;
-
-	ConfigFile NewGame(InfoFile.text());
 
 	TrackInfo* NewTrack;
 	ushort Tracks = 0;
 	FXString TrackNo;
 	char* TN;
 
+	Str = AppPath + InfoFile;
+
+	ConfigFile NewGame(Str.text());
 	NewGame.Load();
 
 	// Game Info
 	// ---------
-	NewGame.GetValue("game", "name_jp", TYPE_STRING, (void*)TempStr);	GI->Name[LANG_JP] = TempStr;	TempStr[0] = '\0';
-	NewGame.GetValue("game", "name_en", TYPE_STRING, (void*)TempStr);	GI->Name[LANG_EN] = TempStr;	TempStr[0] = '\0';
-	NewGame.GetValue("game", "artist", TYPE_STRING, (void*)TempStr);	GI->Artist = TempStr;	TempStr[0] = '\0';
-	NewGame.GetValue("game", "packmethod", TYPE_USHORT, (void*)&GI->PackMethod);
-	NewGame.GetValue("game", "headersize", TYPE_USHORT, (void*)&GI->HeaderSize);
-	NewGame.GetValue("game", "year", TYPE_USHORT, (void*)&GI->Year);
-	NewGame.GetValue("game", "gamenum", TYPE_STRING, (void*)TempStr);	GI->GameNum = TempStr;	TempStr[0] = '\0';
-	NewGame.GetValue("game", "tracks", TYPE_USHORT, (void*)&Tracks);
+	NewGame.GetValue("game", "circle", TYPE_STRING, &Circle[LANG_JP]);
+	NewGame.GetValue("game", "circle_en", TYPE_STRING, &Circle[LANG_EN]);
+	NewGame.GetValue("game", "artist", TYPE_STRING, &Artist[LANG_JP]);
+	NewGame.GetValue("game", "artist_en", TYPE_STRING, &Artist[LANG_EN]);
+	NewGame.GetValue("game", "year", TYPE_USHORT, &Year);
 
-	PM[GI->PackMethod]->ParseGameInfo(NewGame, GI);
+	if(Artist[LANG_EN].empty())	Artist[LANG_EN] = Artist[LANG_JP];
+	if(Circle[LANG_EN].empty())	Circle[LANG_EN] = Circle[LANG_JP];
+	// ---------
+
+	// Composers
+	// ---------
+	ListEntry<IntString>* New = NULL;
+	ushort Cur = 1;
+
+	Str.format("cmp%d", Cur);
+	while(NewGame.GetValue("composer", Str.text(), TYPE_STRING, &Str))
+	{
+		New = Composer.Add();
+		New->Data[LANG_JP] = Str;
+
+		Str.format("cmp%d_en", Cur);
+		if(!NewGame.GetValue("composer", Str.text(), TYPE_STRING, &New->Data[LANG_EN]))	New->Data[LANG_EN] = New->Data[LANG_JP];
+
+		Str.format("cmp%d", ++Cur);
+	}
+
+	if(!New)
+	{
+		New = Composer.Add();
+		New->Data[LANG_JP] = Artist[LANG_JP];
+		New->Data[LANG_EN] = Artist[LANG_EN];
+	}
 	// ---------
 
 	// Track Info
 	// ---------
+
+	NewGame.GetValue("game", "tracks", TYPE_USHORT, &Tracks);
+
 	for(ushort c = 0; c < Tracks; c++)
 	{
-		NewTrack = &(GI->Track.Add()->Data);
+		NewTrack = &(Track.Add()->Data);
 		NewTrack->Clear();
 		NewTrack->Number = c + 1;
 
@@ -61,36 +150,47 @@ void ParseGame(FXString InfoFile, GameInfo* GI)
 
 		TN = TrackNo.text();
 
-		NewGame.GetValue(TN, "name_jp", TYPE_STRING, (void*)TempStr);   	NewTrack->Name[LANG_JP] = TempStr;	TempStr[0] = '\0';
-		NewGame.GetValue(TN, "name_en", TYPE_STRING, (void*)TempStr);   	NewTrack->Name[LANG_EN] = TempStr;	TempStr[0] = '\0';
+		NewGame.LinkValue(TN, "name_jp", TYPE_STRING, &NewTrack->Name[LANG_JP]);
+		NewGame.LinkValue(TN, "name_en", TYPE_STRING, &NewTrack->Name[LANG_EN]);
 
-		if(!NewGame.GetValue(TN, "artist", TYPE_STRING, (void*)TempStr))	NewTrack->Artist = GI->Artist;
-		else																NewTrack->Artist = TempStr;
-		TempStr[0] = '\0';
+		if(!NewGame.GetValue(TN, "composer", TYPE_USHORT, &NewTrack->CmpID))	NewTrack->CmpID = 1;
+		NewTrack->CmpID--;
+				
+		NewGame.LinkValue(TN, "comment_jp", TYPE_STRING, &NewTrack->Comment[LANG_JP]);
+		NewGame.LinkValue(TN, "comment_en", TYPE_STRING, &NewTrack->Comment[LANG_EN]);
 
-		NewGame.GetValue(TN, "comment_jp", TYPE_STRING, (void*)TempStr);	NewTrack->Comment[LANG_JP] = TempStr;	TempStr[0] = '\0';	
-		NewGame.GetValue(TN, "comment_en", TYPE_STRING, (void*)TempStr);	NewTrack->Comment[LANG_EN] = TempStr;	TempStr[0] = '\0';
+		ushort Cmt = 2, Rep = 7;
+		Key.format("comment%d_jp", Cmt);
+		while(NewGame.GetValue(TN, Key.text(), TYPE_STRING, &Str))
+		{
+			NewTrack->Afterword[LANG_JP].append("\n\n" + Str);
 
-		if(!PM[GI->PackMethod]->ParseTrackInfo(NewGame, GI, TN, NewTrack))	continue;
+			Key.format("comment%d_en", Cmt);
+			if(NewGame.GetValue(TN, Key.text(), TYPE_STRING, &Str))		NewTrack->Afterword[LANG_EN].append("\n\n" + Str);
+
+			Key.format("comment%d_jp", ++Cmt);
+		}
+
+		if(!PM[PackMethod]->ParseTrackInfo(NewGame, this, TN, NewTrack))	continue;
 
 		// Read position data
 		// ------------------
 
-		NewGame.GetValue(TN, "start", TYPE_ULONG, (void*)&NewTrack->Start[0]);
+		NewGame.GetValue(TN, "start", TYPE_ULONG, &NewTrack->Start[0]);
 
 		// Absolute values
-		NewGame.GetValue(TN, "abs_loop", TYPE_ULONG, (void*)&NewTrack->Loop);
-		NewGame.GetValue(TN, "abs_end", TYPE_ULONG, (void*)&NewTrack->End);
+		NewGame.GetValue(TN, "abs_loop", TYPE_ULONG, &NewTrack->Loop);
+		NewGame.GetValue(TN, "abs_end", TYPE_ULONG, &NewTrack->End);
 
 		// Relative values
-		NewGame.GetValue(TN, "rel_loop", TYPE_ULONG, (void*)&TempVal);	NewTrack->Loop = NewTrack->Start[0] + TempVal;
-		NewGame.GetValue(TN, "rel_end", TYPE_ULONG, (void*)&TempVal);	NewTrack->End = NewTrack->Start[0] + TempVal;
+		NewGame.GetValue(TN, "rel_loop", TYPE_ULONG, &TempVal);	NewTrack->Loop = NewTrack->Start[0] + TempVal;
+		NewGame.GetValue(TN, "rel_end", TYPE_ULONG, &TempVal);	NewTrack->End = NewTrack->Start[0] + TempVal;
 
 		// Coolier array format
-		if(NewGame.GetValue(TN, "position", TYPE_STRING, (void*)&TempStr))
+		if(NewGame.GetValue(TN, "position", TYPE_STRING, &Str))
 		{
 			Split.Clear();
-			if(SplitString(TempStr, ',', &Split) == 3)
+			if(SplitString(Str.text(), ',', &Split) == 3)
 			{
 				CurSS = Split.First();
 
@@ -105,15 +205,32 @@ void ParseGame(FXString InfoFile, GameInfo* GI)
 
 		if(!NewTrack->Start || !NewTrack->Loop || !NewTrack->End)
 		{
-			Stat.format("WARNING: Couldn't read track position data for Track #%s%d %s!", (c+1) < 10 ? "0" : "", c+1, NewTrack->Name[Lang]);
-			MW->PrintStat(Stat);
+			Str.format("WARNING: Couldn't read track position data for Track #%s%d %s!", (c+1) < 10 ? "0" : "", c+1, NewTrack->Name[Lang]);
+			MW->PrintStat(Str);
 		}
 	}
 	// ---------
 
-	Stat.format("%s (%s)\n", GI->Name[Lang], InfoFile.text());
+	if(WikiUpdate)
+	{
+		NewGame.GetValue("update", "wikipage", TYPE_STRING, &WikiPage);
+		NewGame.LinkValue("update", "wikirev", TYPE_ULONG, &WikiRev);
+		if(Update(this))
+		{
+			Str.format("Saving new track information in %s...\n", FXPath::name(NewGame.GetFN()));
+			MW->PrintStat(Str);
+			if(!NewGame.Save())
+			{
+				Str.format("%s!\n", WriteError);
+				MW->PrintStat(Str);
+			}
+		}
+	}
+	NewGame.Clear();
 
-	MW->PrintStat(Stat);
+	HaveTrackData = true;
+
+	return true;
 }
 
 bool ParseDir(FXString Path)
@@ -122,8 +239,6 @@ bool ParseDir(FXString Path)
 	FXint	BGMCount;
 
 	GameInfo* NewGame;
-
-	MW->PrintStat("---------------------------\nSupported:\n");
 
 	BGMCount = FXDir::listFiles(BGM, Path, "*.bgm");
 
@@ -135,11 +250,13 @@ bool ParseDir(FXString Path)
 
 	Game.Clear();
 
+	MW->PrintStat("---------------------------\nSupported:\n");
+
 	for(FXint c = 0; c < BGMCount; c++)
 	{
 		NewGame = &(Game.Add()->Data);
 		NewGame->Scanned = false;
-		ParseGame(BGM[c], NewGame);
+		if(!NewGame->ParseGameData(BGM[c]))	Game.PopLast();
 	}
 
 	SAFE_DELETE_ARRAY(BGM);
@@ -149,43 +266,64 @@ bool ParseDir(FXString Path)
 	return true;
 }
 
-void PM_Tasofro::GetHeader(GameInfo* GI)
+bool SeekTest(GameInfo* GI)
 {
-	if(GI->Scanned)	return;
+	if(GI->PackMethod == BGMDIR)	return true;
 
+	ushort Seek = 0, Found = 0;
+	TrackInfo* TI;
 	FX::FXFile In;
-	FXushort Files;
+	char Read;
+	bool Ret = true;
+	FXString Str;
 
-	FXuint hdrSize;
-
-	char* hdr;
+	MW->PrintStat("\nVerifying track count...");
 
 	In.open(GI->BGMFile, FXIO::Reading);
 
-	In.readBlock(&Files, 2);
-	hdrSize = GetHeaderSize(In, Files);
+	ListEntry<TrackInfo>* CurTI = GI->Track.First();
+	while(CurTI)
+	{
+		TI = &CurTI->Data;
 
-	hdr = new char[hdrSize];
+		if(TI->Start[0] != 0)
+		{
+			if(GI->PackMethod == BGMDAT)	In.position(TI->End - 1);
+			else							In.position(TI->Start[0]);
 
-	In.readBlock(hdr, hdrSize);
-	DecryptBMHeader(hdr, hdrSize);
+			if(In.readBlock(&Read, 1) == 1)
+			{
+				Seek = TI->Number;
+				Found++;
+			}
+			else	break;
+		}
 
-	// Get track offsets...
-	GetPosData(GI, In, Files, hdr, hdrSize);
-
-	SAFE_DELETE_ARRAY(hdr);
-
-	// ... done!
+		CurTI = CurTI->Next();
+	}
 	In.close();
 
-	// GI->Scanned gets set by SilenceScan
+	Str.format("%d/%d\n", Found, GI->Track.Size());
+
+	if(Seek == 0)
+	{
+		Str.append("BGM file (" + GI->BGMFile + ") is corrupted!\n");
+		Ret = false;
+	}
+	else if(Seek != GI->Track.Size())
+	{
+		Str.append("This is most likely a trial version. Extraction is limited to the available tracks.\n");
+	}
+	GI->TrackCount = Seek;
+	MW->PrintStat(Str);
+	return Ret;
 }
 
 void SilenceScan(GameInfo* GI)
 {
 	if(GI->Scanned)	return;
 
-	MW->PrintStat("Scanning silence start values...");
+	MW->PrintStat("Scanning track start values...");
 
 	TrackInfo* TI;
 	FX::FXFile In;
@@ -198,7 +336,7 @@ void SilenceScan(GameInfo* GI)
 	if(!MultiFile)	In.open(GI->BGMFile, FXIO::Reading);
 
 	ListEntry<TrackInfo>* CurTI = GI->Track.First();
-	while(CurTI)
+	for(ushort Temp = 0; Temp < GI->TrackCount; Temp++)
 	{
 		TI = &CurTI->Data;
 
@@ -238,21 +376,29 @@ GameInfo* ScanGame(FXString& Path)
 	GameInfo* NewGame = NULL;
 	FXString Message;
 
+	if(!FXSystem::setCurrentDirectory(Path))	FXSystem::setCurrentDirectory(Path = FXPath::directory(Path));
+
 	MW->PrintStat("Scanning " + Path + "...\n");
 	MW->PrintStat("------------------------\n");
 
-	FXSystem::setCurrentDirectory(Path);
-
-	for(char m = BM_COUNT - 1; m > -1; m--)
+	for(char m = PM_COUNT - 1; m > -1; m--)
 	{
-		if(NewGame = PM[m]->Scan(Path))	break;
+		if(ActiveGame = NewGame = PM[m]->Scan(Path))	break;
 	}
 
 	if(NewGame != NULL)
 	{
 		Message.format("Identified %s\n", NewGame->Name[Lang]);
 		MW->PrintStat(Message);
-		if(!NewGame->Scanned)	SilenceScan(NewGame);
+		if(!NewGame->HaveTrackData)	NewGame->ParseTrackData();
+
+		PM[NewGame->PackMethod]->TrackData(NewGame);
+
+		if(SeekTest(NewGame))
+		{
+			if(!NewGame->Scanned)	SilenceScan(NewGame);
+		}
+		else NewGame = NULL;
 	}
 	else
 	{
@@ -267,38 +413,41 @@ GameInfo* ScanGame(FXString& Path)
 }
 // -----------------------
 
-void ReadConfig(const FXString& FN)
+bool ReadConfig(const FXString& FN)
 {
 	ushort Index = 0;
-	FXString Sect;
+	FXString Sect, Temp;
 	Encoder* New;
-	char Temp[1024];
-	ConfigFile Cfg(FN.text());
 
-	Cfg.Load();
+	bool Ret = MainCFG.Load(FN.text());
+	
+	MainCFG.LinkValue("default", "lang", TYPE_USHORT, &Lang);
+	MainCFG.LinkValue("default", "play", TYPE_BOOL, &Play);
+	MainCFG.LinkValue("default", "showconsole", TYPE_BOOL, &ShowConsole);
+	MainCFG.LinkValue("default", "removesilence", TYPE_BOOL, &SilRem);
+	MainCFG.LinkValue("default", "loop", TYPE_USHORT, &LoopCnt);
+	MainCFG.LinkValue("default", "fade", TYPE_FLOAT, &FadeDur);
+	MainCFG.LinkValue("default", "volume", TYPE_INT, &Volume);
+	MainCFG.LinkValue("default", "enc", TYPE_USHORT, &EncFmt);
+	MainCFG.LinkValue("default", "pattern", TYPE_STRING, &FNPattern);
+	MainCFG.LinkValue("default", "outdir", TYPE_STRING, &OutPath);
 
-	Cfg.GetValue("default", "lang", TYPE_BOOL, &Lang);
-	Cfg.GetValue("default", "play", TYPE_BOOL, &Play);
-	Cfg.GetValue("default", "showconsole", TYPE_BOOL, &ShowConsole);
-	Cfg.GetValue("default", "removesilence", TYPE_BOOL, &SilRem);
-	Cfg.GetValue("default", "loop", TYPE_USHORT, &LoopCnt);	LoopCnt = MAX(LoopCnt, 1);
-	Cfg.GetValue("default", "fade", TYPE_USHORT, &FadeDur);
-	Cfg.GetValue("default", "volume", TYPE_INT, &Volume);
-	Cfg.GetValue("default", "enc", TYPE_USHORT, &EncFmt);
-	Cfg.GetValue("default", "pattern", TYPE_STRING, (void*)Temp);	FNPattern = Temp;
+	MainCFG.LinkValue("update", "wikiupdate", TYPE_BOOL, &WikiUpdate);
+	MainCFG.LinkValue("update", "wikiurl", TYPE_STRING, &WikiURL);
 
 	Sect.format("enc%d", ++Index);
-	while(Cfg.GetValue(Sect.text(), "name", TYPE_STRING, (void*)Temp))
+	while(MainCFG.GetValue(Sect.text(), "name", TYPE_STRING, &Temp))
 	{
 		New = &(Encoders.Add()->Data);
 		New->Name = Temp;
 
-		Cfg.GetValue(Sect.text(), "lossless", TYPE_BOOL, (void*)&New->Lossless);
-		Cfg.GetValue(Sect.text(), "encoder", TYPE_STRING, (void*)Temp);	New->CmdLine[0] = Temp; New->CmdLine[0].append(" ");
-		Cfg.GetValue(Sect.text(), "options", TYPE_STRING, (void*)Temp);	New->CmdLine[1] = Temp;
+		MainCFG.GetValue(Sect.text(), "lossless", TYPE_BOOL, &New->Lossless);
+		MainCFG.LinkValue(Sect.text(), "encoder", TYPE_STRING, &New->CmdLine[0]);
+		MainCFG.LinkValue(Sect.text(), "options", TYPE_STRING, &New->CmdLine[1]);
 
 		Sect.format("enc%d", ++Index);
 	}
+	return Ret;
 }
 
 // Filename Patterns
@@ -336,14 +485,14 @@ FXString PatternFN(TrackInfo* Track)
 	FN.substitute('/', '_');
 
 	// People would be very angry if U.N. Owen doesn't appear
-	for(FXint c = 0; c < FN.length(); c++)
-	{
-		while(FN.at(c) == '?')	FN.erase(c);
-	}
-
+	remove_sub(FN, "?");
+	
 	// Append encoder
-	FN.append(".");
-	FN.append(Encoders.Get(EncFmt - 1)->Data.Name.lower());
+	if(EncFmt > 0)
+	{
+		FN.append(".");
+		FN.append(Encoders.Get(EncFmt - 1)->Data.Name.lower());
+	}
 
 	return FN;
 }
