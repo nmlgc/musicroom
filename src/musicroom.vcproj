@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9,00"
-	Name="thbgmext"
+	Name="musicroom"
 	ProjectGUID="{0A7B84C6-8214-4210-8C19-028CFDF2EBB0}"
-	RootNamespace="thbgmext"
+	RootNamespace="musicroom"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="196613"
 	>
@@ -41,12 +41,15 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;UNICODE;_CRT_SECURE_NO_WARNINGS;CURL_STATICLIB;MAKE_TAGLIB_LIB;TAGLIB_STATIC"
-				StringPooling="false"
+				AdditionalIncludeDirectories=""
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;UNICODE;_CRT_SECURE_NO_WARNINGS;PROFILING_LIBS"
+				StringPooling="true"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
+				BufferSecurityCheck="true"
 				EnableFunctionLevelLinking="true"
+				RuntimeTypeInfo="true"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="4"
@@ -63,14 +66,17 @@
 			<Tool
 				Name="VCLinkerTool"
 				LinkLibraryDependencies="false"
-				AdditionalDependencies="libcurld.lib libvorbisfile_static_d.lib libogg_static_d.lib libvorbis_static_d.lib tagd.lib zlibd.lib fox_nopngd.lib msimg32.lib imm32.lib winmm.lib kernel32.lib ws2_32.lib wldap32.lib"
+				AdditionalDependencies="bgmlib_d.lib foxd.lib libcurld_imp.lib libvorbisfile_d.lib libogg_d.lib libvorbis_d.lib msimg32.lib imm32.lib dsound.lib wldap32.lib winmm.lib ws2_32.lib"
 				ShowProgress="0"
 				OutputFile="$(OutDir)\$(ProjectName)D.exe"
 				LinkIncremental="0"
-				AdditionalLibraryDirectories="C:\Development\Visual C++\Libs\taglib\taglib\Debug"
+				AdditionalLibraryDirectories="..\..\"
 				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="true"
 				SubSystem="2"
+				OptimizeReferences="0"
+				EnableCOMDATFolding="0"
+				LinkTimeCodeGeneration="0"
 				EntryPointSymbol="mainCRTStartup"
 				TargetMachine="1"
 			/>
@@ -121,11 +127,17 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				Optimization="2"
+				Optimization="3"
+				InlineFunctionExpansion="2"
 				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="1"
+				EnableFiberSafeOptimizations="true"
 				WholeProgramOptimization="true"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;UNICODE;_CRT_SECURE_NO_WARNINGS;CURL_STATICLIB;MAKE_TAGLIB_LIB;TAGLIB_STATIC"
+				AdditionalIncludeDirectories=""
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;UNICODE;_CRT_SECURE_NO_WARNINGS;OV_EXCLUDE_STATIC_CALLBACKS;CURL_STATICLIB"
+				StringPooling="true"
+				MinimalRebuild="true"
+				ExceptionHandling="1"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				RuntimeTypeInfo="false"
@@ -144,8 +156,13 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="libcurl.lib libvorbisfile_static.lib libogg_static.lib libvorbis_static.lib tag.lib fox_nopng.lib msimg32.lib imm32.lib winmm.lib ws2_32.lib wldap32.lib"
+				LinkLibraryDependencies="false"
+				AdditionalDependencies="bgmlib.lib fox.lib libcurl.lib libvorbisfile_static.lib libogg.lib libvorbis.lib msimg32.lib imm32.lib ws2_32.lib wldap32.lib dsound.lib"
+				Version=""
 				LinkIncremental="1"
+				AdditionalLibraryDirectories=""
+				IgnoreAllDefaultLibraries="false"
+				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="false"
 				SubSystem="2"
 				OptimizeReferences="2"
@@ -180,12 +197,24 @@
 	</References>
 	<Files>
 		<Filter
-			Name="Headerdateien"
+			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath="config.h"
+				RelativePath=".\enc_base.h"
+				>
+			</File>
+			<File
+				RelativePath=".\enc_custom.h"
+				>
+			</File>
+			<File
+				RelativePath=".\enc_vorbis.h"
+				>
+			</File>
+			<File
+				RelativePath=".\encode.h"
 				>
 			</File>
 			<File
@@ -193,7 +222,7 @@
 				>
 			</File>
 			<File
-				RelativePath="list.h"
+				RelativePath=".\libvorbis.h"
 				>
 			</File>
 			<File
@@ -205,7 +234,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\musicroom.h"
+				>
+			</File>
+			<File
 				RelativePath="parse.h"
+				>
+			</File>
+			<File
+				RelativePath=".\pm.h"
 				>
 			</File>
 			<File
@@ -213,12 +250,12 @@
 				>
 			</File>
 			<File
-				RelativePath="thbgmext.h"
+				RelativePath=".\widgets.h"
 				>
 			</File>
 		</Filter>
 		<Filter
-			Name="Ressourcendateien"
+			Name="Resource Files"
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
@@ -227,17 +264,25 @@
 				>
 			</File>
 			<File
-				RelativePath=".\thbgmext.rc"
+				RelativePath=".\musicroom.rc"
 				>
 			</File>
 		</Filter>
 		<Filter
-			Name="Quelldateien"
+			Name="Source Files"
 			Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath="config.cpp"
+				RelativePath=".\enc_custom.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\enc_vorbis.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\encode.cpp"
 				>
 			</File>
 			<File
@@ -245,11 +290,11 @@
 				>
 			</File>
 			<File
-				RelativePath="list.cpp.h"
+				RelativePath="mainwnd.cpp"
 				>
 			</File>
 			<File
-				RelativePath="mainwnd.cpp"
+				RelativePath=".\musicroom.cpp"
 				>
 			</File>
 			<File
@@ -257,11 +302,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\pm_bgmdat.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\pm_bgmdir.cpp"
+				RelativePath=".\pm_pbg6.cpp"
 				>
 			</File>
 			<File
@@ -273,11 +314,43 @@
 				>
 			</File>
 			<File
-				RelativePath="thbgmext.cpp"
+				RelativePath=".\widgets.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\wikiupdate.cpp"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="Tagging"
+			>
+			<File
+				RelativePath=".\tag_base.h"
+				>
+			</File>
+			<File
+				RelativePath=".\tag_id3v2.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\tag_id3v2.h"
+				>
+			</File>
+			<File
+				RelativePath=".\tag_vorbis.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\tag_vorbis.h"
+				>
+			</File>
+			<File
+				RelativePath=".\tagger.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\tagger.h"
 				>
 			</File>
 		</Filter>

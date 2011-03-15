@@ -1,116 +1,98 @@
-// Touhou Project BGM Extractor
-// ----------------------------
+// Music Room Interface
+// --------------------
 // mainwnd.h - GUI
-// ----------------------------
-// "©" Nameless, 2010
+// --------------------
+// "©" Nmlgc, 2010-2011
 
-#define MESSAGE_FUNCTION(x) long x(FXObject*, FXSelector, void*)
+// Action states
+#define MW_ACT_NONE		0x00
+#define MW_ACT_EXTRACT	0x01
+#define MW_ACT_TAG		0x02
+#define MW_ACT_ALL		MW_ACT_EXTRACT | MW_ACT_TAG
 
-// Modified Table Widget
-// ---------------------
-class LOTable : public FXTable
-{
-public:
-	LOTable(FXComposite *p,FXObject* tgt=NULL,FXSelector sel=0,FXuint opts=0,FXint x=0,FXint y=0,FXint w=0,FXint h=0,FXint pl=DEFAULT_MARGIN,FXint pr=DEFAULT_MARGIN,FXint pt=DEFAULT_MARGIN,FXint pb=DEFAULT_MARGIN);
-
-	// Fit column widths to contents
-	void fitColumnsToContents(FXint col,FXint nc=1);
-};
-// ---------------------
+// Forward declarations
+class LCListBox;
+class LCTable;
+class LCText;
 
 class MainWnd : public FXMainWindow
 {
 	FXDECLARE(MainWnd);
 
 	friend class Extractor;
+	friend class MainWndFront;
 
 private:
 	MainWnd()	{}
 
 protected:
+	volatile bool Lock;
 	short PrevTrackID;
 	TrackInfo* CurTrack;
 
 	// Widgets
-	FXVerticalFrame*	Main;
+	FXLabel*	GameDirLabel;
+	FXButton*	GameDirSelect;
 
-	FXGroupBox*	GameBox;
-		FXLabel*	GameLabel;
-		FXHorizontalFrame* GameDirFrame;
-		FXLabel*	GameDirLabel;
-		FXButton*	GameDirSelect;
+	FXCheckButton* TrackPlay;
+	FXSlider* TrackVol;
+	FXDataTarget VolDT;
 
-	FXHorizontalFrame* LabelFrame;
-		FXCheckButton* TrackPlay;
-		FXSlider* TrackVol;
-		FXDataTarget VolDT;
+	LCTable* TrackView;
+	
+	LCText* Comment;
 
-	FXSplitter* TrackFrame;
-		FXPacker* TrackEdge;
-		LOTable* TrackView;
+	FXRadioButton*	LangBT[LANG_COUNT];
 
-		FXPacker* CommentEdge;
-		FXText* Comment;
+	FXDataTarget WikiDT;
+	FXCheckButton*	GetWiki;
 
-	FXGroupBox*	LangBox;
-		FXHorizontalFrame* LangFrame;
-		FXRadioButton*	LangBT[2];
+	FXTextField* FNField;
+	FXLabel*	FNExample;
+		FXSpinner* LoopField;
+		FXRealSpinner* FadeField;
+		FXDataTarget AlgDT;
+		FXListBox*	AlgBox;
+	FXCheckButton* RemoveSilence;
 
-		FXDataTarget WikiDT;
-		FXCheckButton*	GetWiki;
+	FXTextField* OutDirField;
+	FXButton*	OutDirSelect;
 
-	FXGroupBox* PatternBox;
-		FXTextField* FNField;
-		FXLabel*	FNExample;
+	FXButton* StartAll;
+	FXButton* StartSel;
+	FXButton* TagUpdate;
+	FXButton* Stop;
+	
+	FXDataTarget	EncDT;
+	FXRadioButton**	EncBtn;
 
-	FXHorizontalFrame* OutFrame;
-	FXVerticalFrame* OutRightFrame;
-
-	FXGroupBox* ParamBox;
-		FXMatrix* ParamFrame;
-		FXHorizontalFrame* LoopFrame;
-			FXSpinner* LoopField;
-		FXHorizontalFrame* FadeFrame;
-			FXRealSpinner* FadeField;
-		FXCheckButton* RemoveSilence;
-
-	FXGroupBox* OutDirBox;
-		FXHorizontalFrame* OutDirFrame;
-		FXTextField* OutDirField;
-		FXButton*	OutDirSelect;
-
-	FXVerticalFrame* StartFrame;
-		FXButton* StartAll;
-		FXButton* StartSel;
-		FXButton* TagUpdate;
-		FXButton* Stop;
-		
-	FXGroupBox* EncBox;
-		FXVerticalFrame* EncFrame;
-		FXDataTarget	EncDT;
-		FXRadioButton**	EncBtn;
-		FXLabel*	EncMsg;
-
-	FXGroupBox*	StatBox;
-		FXVerticalFrame*	StatFrame;
-		FXText*  	Stat;
+	LCText*  	Stat;
+	FXProgressBar*	ProgBar;
+		FXDataTarget ProgDT;
+	FXStatusLine*	PlayStat;
 
 	bool CheckOutDir();
 
-	void SetTextViewColors(FXText* Text);	// Sets this cool inverted color scheme
-
 	void SetComment(TrackInfo* TI);
+
+	FXString DirDialog(const FXString& Title);	// Shows a directory selection dialog and returns the selected directory
 
 public:
 	MainWnd(FXApp* App);
+
+	FXString StatCache;	// PrintStat collector
+	FXString Notice;	// Personal appeal cache
+	LCListBox*	GameList;
 
 	bool CFGFail;
 
 	enum
 	{
+		MW_INIT = FXMainWindow::ID_LAST,
 		// GUI
-		MW_CHANGE_ACTION_STATE = FXMainWindow::ID_LAST,
+		MW_CHANGE_ACTION_STATE,
 		MW_STOP_SHOW,
+		MW_SHOW_NOTICE,
 
 		MW_FILLTABLE_BASIC,
 
@@ -121,15 +103,21 @@ public:
 		MW_FN_PATTERN,
 
 		MW_PARSEDIR,
-		MW_LOADGAME,
+		MW_SELECT_DIR,
+
+		MW_LOAD_GAME,
+		MW_SWITCH_GAME,
 		
 		MW_CHANGE_TRACK,
+		MW_PROG_REDRAW,
 		
 		MW_TOGGLE_PLAY,
-		MW_STREAM,
+		MW_PLAY_STAT,
 
 		MW_UPDATE_ENC,
-		MW_UPDATE_ENC_END = MW_UPDATE_ENC + 16,
+		MW_UPDATE_ENC_END = MW_UPDATE_ENC + MAX_ENCODERS,
+
+		MW_ENC_SETTINGS,
 
 		MW_OUTDIR,
 		// Actions
@@ -137,37 +125,49 @@ public:
 		MW_EXTRACT_SEL,
 		MW_TAG_UPDATE,
 		MW_STOP,
-		MW_EXT_MSG,
-		MW_EXT_FINISH,
+		MW_THREAD_STAT,
+		MW_THREAD_MSG,
+		MW_ACT_FINISH,
 
 		ID_LAST 
 	};
 
-	void create();
+	void create();	// Inits the streamer and reads BGM info files
 	void destroy();
 
-	MESSAGE_FUNCTION(onChangeActionState);
+	MESSAGE_FUNCTION(onChangeActionState);	// Changes the state of the extraction and tag buttons. [ptr] takes any valid action state value (see above)
 	MESSAGE_FUNCTION(onStopShow);
+	MESSAGE_FUNCTION(onShowNotice);
 	MESSAGE_FUNCTION(onFillTableBasic);
 	MESSAGE_FUNCTION(onCmdStrings);	// Updates all string labels with the set language
 	MESSAGE_FUNCTION(onUpdStrings);	// Updates all string labels with the set language
 	MESSAGE_FUNCTION(onCmdLengths);	// Calculate track lengths based on loop count and fade duration
 	MESSAGE_FUNCTION(onFNPattern);
 	MESSAGE_FUNCTION(onParseDir);
-	MESSAGE_FUNCTION(onLoadGame);
+	MESSAGE_FUNCTION(onSelectDir);
+	MESSAGE_FUNCTION(onLoadGame);	// Loads the game in the [ptr] directory
+	MESSAGE_FUNCTION(onSwitchGame);
 	MESSAGE_FUNCTION(onChangeTrack);
+	MESSAGE_FUNCTION(onProgRedraw);
 	MESSAGE_FUNCTION(onTogglePlay);
+	MESSAGE_FUNCTION(onPlayStat);	// Displays playing status tooltip
 	MESSAGE_FUNCTION(onStream);
-	MESSAGE_FUNCTION(onUpdEnc);	// Updates all string labels with the set language
+	MESSAGE_FUNCTION(onUpdEnc);	// Selects a new encoder
+	MESSAGE_FUNCTION(onEncSettings);	// Shows encoding settings dialog
 	MESSAGE_FUNCTION(onSelectOutDir);
 	MESSAGE_FUNCTION(onExtractTrack);
 	MESSAGE_FUNCTION(onExtract);
 	MESSAGE_FUNCTION(onTagUpdate);
 	MESSAGE_FUNCTION(onStop);
-	MESSAGE_FUNCTION(onExtMsg);
-	MESSAGE_FUNCTION(onExtFinish);
+	MESSAGE_FUNCTION(onThreadStat);	// Prints out collected stat messages from other threads
+	MESSAGE_FUNCTION(onThreadMsg);
+	MESSAGE_FUNCTION(onActFinish);
 
-	GameInfo* LoadGame(FXString NewGameDir);
+	void LoadGame(FXString& Path);
+	void LoadGame(GameInfo* NewGame);
 
-	void PrintStat(FXString NewStat);
+	void PrintStat(const FXString& NewStat);
+	void ProgConnect(volatile FXulong* Var = NULL, FXuint Max = 0);	// Connects any variable to the progress bar at the bottom. Call again with [Var = NULL] to unresolve.
 };
+
+extern MainWnd* MWBack;	// Back end GUI class

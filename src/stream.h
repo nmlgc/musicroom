@@ -1,17 +1,21 @@
-// Touhou Project BGM Extractor
-// ----------------------------
+// Music Room Interface
+// --------------------
 // stream.h - Wave streaming
-// ----------------------------
-// "©" Nameless, 2010
+// --------------------
+// "©" Nmlgc, 2010-2011
 
 #ifdef WIN32
-#include <windows.h>
-#include <mmsystem.h>
+#include <dsound.h>
 
-static CRITICAL_SECTION WaveCS;
+#include <FXHash.h>
+#include <FXStream.h>
+#include <FXObject.h>
+#include <FXThread.h>
 
-class Streamer
+class Streamer : public FXThread, FXObject
 {
+	friend class StreamerFront;
+
 private:
 	Streamer();
 
@@ -21,50 +25,48 @@ protected:
 	// Streaming File Information
 	// --------------------------
 	TrackInfo* Track;
-	FILE*	BGMFile;
+	TrackInfo* New;	// Track switch queue
+	FXFile	BGMFile;
 	ulong	Pos;
-
-	float VolLog; // Volume in range [0.0 ; 1.0]
-
-	static const int ReadBufferSize = 16384;
-	char ReadBuffer[Streamer::ReadBufferSize];
 	// --------------------------
 
-	// waveOut API
-	HWAVEOUT Dev;		// waveOut Device
+	// DirectSound API
+	IDirectSound8* DS;	// Device
 	WAVEFORMATEX Fmt;	// Sample rate
 
 	// Vorbis Stuff
 	OggVorbis_File SF;
 
 	// Streaming Blocks
-	WAVEHDR* Block;	// Audio blocks
-	uint CurBlock;	// Block pointer
-	volatile uint FreeBlockCount; // volatile = can be modified from different threads
+	IDirectSoundBuffer* SB;	// Sound Buffer
+	ulong	Write;	// Current write cursor
+	volatile bool StopReq;	// Set true to request thread stopping
 
-	void UnprepareBlocks();
-	void CreateBlocks();
-	void ClearBlocks();
-
-	void StreamFrame_WAV(); // Streaming Loop Function
-	void StreamFrame_OGG();
+	void StreamFrame_WAV(char* Buffer, const ulong& Size);
+	void StreamFrame_OGG(char* Buffer, const ulong& Size);
+	bool StreamFrame(const ulong& Offset, const ulong& Size); // Streaming Loop Function
+	
 	bool SwitchTrack_WAV(TrackInfo* NewTrack);
 	bool SwitchTrack_OGG(TrackInfo* NewTrack);
+	bool SwitchTrack();
 
 public:
-	static const int BlockSize = Streamer::ReadBufferSize;
-	static const int BlockCount = 5;
+	static const int BlockSize = 0x4000;
+	static const int BlockCount = 3;
+	static const int BufferSize = BlockSize * BlockCount;
+	
+	virtual FXint run();	// Thread loop, runs streaming and track switching
 
-	bool Init();
+	bool Init(void* xid);
 
-	bool WriteAudio(char* Raw, int Size);	// returns false if audio data has to be cached because all buffers are full
+	void SetVolume();
 
-	void StreamFrame(); // Streaming Loop Function
-	bool SwitchTrack(TrackInfo* NewTrack);
+	void RequestTrackSwitch(TrackInfo* NewTrack);
+	void Play();
+	void Stop();	// Waits with returning until thread is done!
 
-	void Stop();
+	void ClearBuffer();	// Resets whole buffer to zero. Only necessary on game switches.
 	void CloseFile();
-
 	void Exit();
 
 	static Streamer& Inst()

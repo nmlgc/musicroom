@@ -1,22 +1,30 @@
-// Touhou Project BGM Extractor
-// ----------------------------
+// Music Room Interface
+// --------------------
 // pm_tasofro.cpp - Parsing for Tasofro archives
-// ----------------------------
-// "©" Nameless, 2010
+// --------------------
+// "©" Nmlgc, 2010
 
-#include "thbgmext.h"
-#include "config.h"
+#include <bgmlib/platform.h>
+#include <FXSystem.h>
+#include <FXFile.h>
+#include <bgmlib/infostruct.h>
+#include <bgmlib/ui.h>
+#include <bgmlib/config.h>
+#include <bgmlib/packmethod.h>
+#include <bgmlib/utils.h>
+#include "pm.h"
+#include <bgmlib/libvorbis.h>
 #include "mt.hpp"
 
 // Info
 // ----
 bool PM_Tasofro::CheckCryptKind(ConfigFile& NewGame, const uchar& CRKind)
 {
-	if(CRKind == 0 || CRKind > CR_COUNT)
+	if(CRKind == 0 || CRKind > CR_TENSHI)
 	{
 		FXString Str;
-		Str.format("ERROR: Invalid encryption kind specified in %s!\n", NewGame.GetFN());
-		MW->PrintStat(Str);
+		Str.format("Invalid encryption kind specified in %s!\n", NewGame.GetFN());
+		BGMLib::UI_Error(Str);
 		return false;
 	}
 	return true;
@@ -24,32 +32,30 @@ bool PM_Tasofro::CheckCryptKind(ConfigFile& NewGame, const uchar& CRKind)
 
 bool PM_BMWav::ParseGameInfo(ConfigFile &NewGame, GameInfo *GI)
 {
-	NewGame.GetValue("game", "bgmfile", TYPE_STRING, &GI->BGMFile);
-
-	PMGame.Add(&GI);
+	PF_PGI_BGMFile(NewGame, GI);
 	return CheckCryptKind(NewGame, GI->CryptKind);
 }
 
-bool PM_BMWav::ParseTrackInfo(ConfigFile &NewGame, GameInfo *GI, const char* TN, TrackInfo *NewTrack)
+bool PM_BMWav::ParseTrackInfo(ConfigFile &NewGame, GameInfo *GI, ConfigParser* TS, TrackInfo *NewTrack)
 {
-	NewGame.GetValue(TN, "filename", TYPE_STRING, &NewTrack->FN);
+	TS->GetValue("filename", TYPE_STRING, &NewTrack->FN);
 	NewTrack->Start[0] = GI->HeaderSize;
+	NewTrack->PosFmt = FMT_BYTE;
 
 	return false;	// Read position info from archive
 }
 
 bool PM_BMOgg::ParseGameInfo(ConfigFile &NewGame, GameInfo *GI)
 {
-	NewGame.GetValue("game", "bgmfile", TYPE_STRING, &GI->BGMFile);
-
-	PMGame.Add(&GI);
+	PF_PGI_BGMFile(NewGame, GI);
 	return CheckCryptKind(NewGame, GI->CryptKind);
 }
 
-bool PM_BMOgg::ParseTrackInfo(ConfigFile &NewGame, GameInfo *GI, const char* TN, TrackInfo *NewTrack)
+bool PM_BMOgg::ParseTrackInfo(ConfigFile &NewGame, GameInfo *GI, ConfigParser* TS, TrackInfo *NewTrack)
 {
-	NewGame.GetValue(TN, "filename", TYPE_STRING, &NewTrack->FN);
-	NewTrack->Vorbis = true;
+	TS->GetValue("filename", TYPE_STRING, &NewTrack->FN);
+	NewTrack->PosFmt = FMT_SAMPLE;
+	GI->Vorbis = true;
 
 	return false;	// Read position info from archive
 }
@@ -108,7 +114,6 @@ void PM_Tasofro::DecryptHeaderV2(char* hdr, const FXuint& hdrSize, const FXushor
 }
 
 // Calling functions
-
 ulong PM_Tasofro::HeaderSize(GameInfo* GI, FX::FXFile& In, const FXushort& Files)
 {
 	switch(GI->CryptKind)
@@ -159,8 +164,7 @@ void PM_BMWav::GetPosData(GameInfo* GI, FX::FXFile& In, FXushort& Files, char* h
 
 			if((Track->FN + ".wav") == FN)
 			{
-				memcpy(&Track->Start[0], p, 4);
-				p += 4;
+				memcpy_advance(&Track->Start[0], &p, 4);
 				Track->FN = GI->BGMFile;
 				CurTrack = NULL;
 			}
@@ -202,11 +206,11 @@ void PM_BMWav::GetPosData(GameInfo* GI, FX::FXFile& In, FXushort& Files, char* h
 
 // Data
 // ----
-void PM_BMOgg::DecryptBuffer(char* Out, ulong Pos, ulong Size)
+ulong PM_BMOgg::DecryptBuffer(const uchar& CryptKind, char* Out, const ulong& Pos, const ulong& Size)
 {
 	unsigned char k = (Pos >> 1);
 	
-	switch(ActiveGame->CryptKind)
+	switch(CryptKind)
 	{
 	case CR_SUIKA:	k |= 0x08;	break;	// I found that one on my own! I'm really proud of myself :-)
 	case CR_TENSHI:	k |= 0x23;	break;
@@ -216,24 +220,28 @@ void PM_BMOgg::DecryptBuffer(char* Out, ulong Pos, ulong Size)
 	{
 		Out[i] ^= k;
 	}
+
+	return Size;
 }
 
-char* PM_BMOgg::DecryptFile(FX::FXFile& In, ulong& Pos, ulong& Size)
+ulong PM_BMOgg::DecryptFile(GameInfo* GI, FXFile& In, char* Out, const ulong& Pos, const ulong& Size, volatile FXulong* p)
 {
-	char* Out = new char[Size];
 	if(!Out)	return NULL;
 
-	In.position(Pos);
-	In.readBlock(Out, Size);
+	if(!In.position(Pos))	return 0;
+	ulong Ret = In.readBlock(Out, Size);
 
-	DecryptBuffer(Out, Pos, Size);
+	DecryptBuffer(GI->CryptKind, Out, Pos, Ret);
+	if(p)	*p = Ret;
 
-	return Out;
+	return Ret;
 }
 
-void PM_BMOgg::ReadSFL(FX::FXFile& In, ulong& Pos, ulong& Size, TrackInfo* TI)
+void PM_BMOgg::MetaData(GameInfo* GI, FX::FXFile& In, const ulong& Pos, const ulong& Size, TrackInfo* TI)
 {
-	char* SFL = DecryptFile(In, Pos, Size);
+	char* SFL = new char[Size];
+	DecryptFile(GI, In, SFL, Pos, Size);
+
 	char* p = SFL + 28;
 
 	memcpy(&TI->Loop, p, 4); p += 4 + 40;
@@ -244,35 +252,16 @@ void PM_BMOgg::ReadSFL(FX::FXFile& In, ulong& Pos, ulong& Size, TrackInfo* TI)
 	SAFE_DELETE_ARRAY(SFL);
 }
 
-bool PM_BMOgg::DumpOGG(FX::FXFile& In, ulong& Pos, ulong& Size, FXString& DumpFN)
-{
-	FILE* Dec = fopen(DumpFN.text(), "wb");
-	if(!Dec)
-	{
-		MW->PrintStat("ERROR: Couldn't open temporary Vorbis file!\nExtraction from this game won't be possible...\n");
-		return false;
-	}
-
-	char* DecBuf = DecryptFile(In, Pos, Size);
-	fwrite(DecBuf, Size, 1, Dec);
-	SAFE_DELETE_ARRAY(DecBuf);
-
-	fclose(Dec);
-
-	return true;
-}
-
-void PM_BMOgg::GetPosData(GameInfo* GI, FX::FXFile& In, FXushort& Files, char* hdr, FXuint& hdrSize)
+void PM_BMOgg::GetPosData(GameInfo* GI, FXFile& In, FXushort& Files, char* hdr, FXuint& hdrSize)
 {
 	char* p = hdr;
 
 	char FNTemp[128];
-	FXString FN, FNExt;
 	ulong CFPos = 0, CFSize = 0;
 	uchar FNLen;
 
 	ListEntry<TrackInfo>* CurTrack;
-	TrackInfo* Track;
+	TrackInfo* TI;
 
 	for(ushort c = 0; c < Files; c++)
 	{
@@ -280,101 +269,76 @@ void PM_BMOgg::GetPosData(GameInfo* GI, FX::FXFile& In, FXushort& Files, char* h
 		{
 			memcpy( &CFPos, p + GI->EntrySize - 4, 4);
 			memcpy(&CFSize, p + GI->EntrySize - 8, 4);
-			FNLen = strlen(p) - 4;
+			FNLen = strlen(p);
 		}
 		else
 		{
-			memcpy( &CFPos, p, 4);	p += 4;
-			memcpy(&CFSize, p, 4);	p += 4;
-			memcpy( &FNLen, p, 1);	p += 1;
-
-			FNLen -= 4;
+			memcpy_advance( &CFPos, &p, 4);
+			memcpy_advance(&CFSize, &p, 4);
+			memcpy_advance( &FNLen, &p, 1);
 		}
 
 		// Split filename in name + extension
 		strncpy(FNTemp, p, FNLen);	p += FNLen;
-		FNTemp[FNLen] = '\0';	FN = FNTemp;
+		FNTemp[FNLen] = '\0';
 
-		strncpy(FNTemp, p, 4);	p += 4;
-		FNTemp[4] = '\0';	FNExt = FNTemp;
+		PF_TD_ParseArchiveFile(GI, In, FNTemp, "ogg", "sfl", CFPos, CFSize);
 
-		CurTrack = GI->Track.First();
-		while(CurTrack)
-		{
-			Track = &CurTrack->Data;
-
-			if((Track->FN) == FN)
-			{
-				if(FNExt == ".ogg")
-				{
-					Track->Start[0] = Track->Start[1] = CFPos;
-					Track->FS = CFSize;
-				}
-				else if(FNExt == ".sfl")
-				{
-					ReadSFL(In, CFPos, CFSize, Track);
-				}
-				
-				CurTrack = NULL;
-			}
-			else CurTrack = CurTrack->Next();
-		}
-		if(GI->CryptKind == CR_SUIKA) p += GI->EntrySize - FNLen - 4;
+		if(GI->CryptKind == CR_SUIKA) p += GI->EntrySize - FNLen;
 	}
 
 	CurTrack = GI->Track.First();
 	while(CurTrack)
 	{
-		Track = &CurTrack->Data;
-		if(Track->Start[0] == 0)
+		TI = &CurTrack->Data;
+		if(TI->Start[0] == 0)
 		{
-			Track->FS = 0;
+			TI->FS = -1;
 			CurTrack = CurTrack->Next();
 			continue;
 		}
 
-		if(Track->Loop == 0)
+		if(TI->Loop == 0)
 		{
-			// Yes, we have to decrypt those and then read them back in to get their sample length...
+			// LARGE_INTEGER Time[2], Total;
+			// QueryPerformanceCounter(&Time[0]);
+
+			// Right. This is indeed faster than the CryptFile solution.
+			VFile Dec(TI->FS);
+			DecryptFile(GI, In, Dec.Buf, TI->GetStart(), Dec.Size, &Dec.Write);
+
 			OggVorbis_File SF;
-
-			DumpOGG(In, Track->Start[0], Track->FS, OGGDumpFile);
-			
-			FILE* Dec = fopen(OGGDumpFile.text(), "rb");
-
-			if(ov_open_callbacks(Dec, &SF, NULL, 0, OV_CALLBACKS_DEFAULT))
+			if(ov_open_callbacks(&Dec, &SF, NULL, 0, OV_CALLBACKS_VFILE))
 			{
-				sprintf(FNTemp, "Error decrypting %s!\n", Track->FN);
-				MW->PrintStat(FNTemp);
+				sprintf(FNTemp, "Error decrypting %s!\n", TI->FN);
+				BGMLib::UI_Stat(FNTemp);
 			}
 			else
 			{
-				Track->End = ov_pcm_total(&SF, -1);
-				Track->Loop = 0;
+				TI->Loop = TI->End = ov_pcm_total(&SF, -1);
 				ov_clear(&SF);
 			}
+			Dec.Clear();
 
-			fclose(Dec);
-
-			FX::FXFile::remove(OGGDumpFile);
+			// QueryPerformanceCounter(&Time[1]);
+			// Total = Time[1] - Time[0];
 		}
 		CurTrack = CurTrack->Next();
 	}
 
-	FXSystem::setCurrentDirectory(GamePath);
+	FXSystem::setCurrentDirectory(GI->Path);
 
 	// We don't silence scan vorbis files!
 	GI->Scanned = true;
 }
 // ----
 
-void PM_Tasofro::TrackData(GameInfo* GI)
+bool PM_Tasofro::TrackData(GameInfo* GI)
 {
-	FX::FXFile In;
+	FXFile In;
 	FXushort Files;
 
 	FXuint hdrSize;
-
 	char* hdr;
 
 	In.open(GI->BGMFile, FXIO::Reading);
@@ -396,6 +360,7 @@ void PM_Tasofro::TrackData(GameInfo* GI)
 	In.close();
 
 	// GI->Scanned gets set by SilenceScan
+	return true;
 }
 
 // Scanning
@@ -411,46 +376,15 @@ bool PM_BMWav::CheckBMTracks(GameInfo* Target)
 
 	return Tracks == Target->TrackCount;
 }
+static bool Wrap_CheckBMTracks(GameInfo* GI)	{return PM_BMWav::Inst().CheckBMTracks(GI);}
 
-GameInfo* PM_BMWav::Scan(FXString& Path)
+GameInfo* PM_BMWav::Scan(const FXString& Path)
 {
-	GameInfo* NewGame = NULL;
-	FXString* Files = NULL;
-	FXint FileCount = 0;
-	
-	ListEntry<GameInfo*>* CurGame = PMGame.First();
-	while(CurGame)
-	{
-		NewGame = CurGame->Data;
-
-		FileCount = FXDir::listFiles(Files, Path, NewGame->BGMFile, FXDir::NoDirs | FXDir::CaseFold | FXDir::HiddenFiles);
-		SAFE_DELETE_ARRAY(Files);
-
-		if(FileCount == 1 && CheckBMTracks(NewGame))	return NewGame;
-		CurGame = CurGame->Next();
-	}
-
-	return NULL;
+	return PF_Scan_BGMFile(Path, Wrap_CheckBMTracks);
 }
 
-GameInfo* PM_BMOgg::Scan(FXString& Path)
+GameInfo* PM_BMOgg::Scan(const FXString& Path)
 {
-	GameInfo* NewGame = NULL;
-	FXString* Files = NULL;
-	FXint FileCount = 0;
-	
-	ListEntry<GameInfo*>* CurGame = PMGame.First();
-	while(CurGame)
-	{
-		NewGame = CurGame->Data;
-
-		FileCount = FXDir::listFiles(Files, Path, NewGame->BGMFile, FXDir::NoDirs | FXDir::CaseFold | FXDir::HiddenFiles);
-		SAFE_DELETE_ARRAY(Files);
-
-		if(FileCount == 1)	return NewGame;
-		CurGame = CurGame->Next();
-	}
-
-	return NULL;
+	return PF_Scan_BGMFile(Path);
 }
 // --------

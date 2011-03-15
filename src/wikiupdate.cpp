@@ -1,237 +1,164 @@
-// Touhou Project BGM Extractor
-// ----------------------------
+// Music Room Interface
+// --------------------
 // wikiupdate.cpp - Touhou Wiki Track Info Updating
-// ----------------------------
-// "©" Nameless, 2010
+// --------------------
+// "©" Nmlgc, 2010-2011
 
-#include "thbgmext.h"
-#include <curl.h>
-#include <../lib/icons.h>
+#include <bgmlib/platform.h>
+
+#include <bgmlib/list.h>
+#include <bgmlib/config.h>
+#include <bgmlib/infostruct.h>
+#include <bgmlib/bgmlib.h>
+#include <bgmlib/ui.h>
+#include <bgmlib/utils.h>
+
+#include <fxascii.h>
+#include <FXRex.h>
+
+#include <curl/curl.h>
 
 // Wiki stuff to remove
-const FXString Tmpl[2] = {"{{", "}}"};
-const FXString Link[2] = {"[[", "]]"};
-const FXString HTML[2] = {"<", ">"};
+static const FXString Face = "''";
+static const FXString Tmpl[2] = {"{{", "}}"};
+static const FXString Link[2] = {"[[", "]]"};
+static const FXString HTML[2] = {"<", ">"};
+static const FXString Space("   ");
 
-// Removes all occurrences of a given substring
-// No idea why there isn't a function like this already.
-// --------------------------------------------
-FXString& remove_sub(FXString& str, const FXchar* org, FXint olen)
+static const FXint regexp_mode(FXRex::Normal|FXRex::Capture|FXRex::IgnoreCase|FXRex::Newline);
+
+// Lots of wiki normalization functions
+
+// Returns the end of the template starting after [t]
+static FXint GetBounds(FXString& Str, FXint* s, FXint t, const FXString& markup_open, const FXString& markup_close)
 {
-  if(0<olen){
-	  register FXint pos = 0;
-    while(pos<=str.length()-olen){
-      if(compare(str.text()+pos,org,olen)==0)
-	  {
-		  str.erase(pos,olen);
-        continue;
-		}
-      pos++;
-      }
-    }
-  return str;
-  }
+	FXint n = 0;	// Template nest counter
 
-FXString& remove_sub(FXString& str, const FXchar& org)
-{
-  return remove_sub(str, &org, 1);
-}
+	if(s)	*s = Str.find('|', t);
 
-FXString& remove_sub(FXString& str, const FXString& org)
-{
-	return remove_sub(str, org.text(), org.length());
-}
-// --------------------------------------------
-
-// Nicely colored custom message box
-// ---------------------------------
-class LCUpdateMessage : public FXDialogBox	// Thanks for having to copy the entire fucking class, Jeroen.
-{
-	FXDECLARE(LCUpdateMessage)
-
-private:
-	void Construct(const FXString& TopMsg, const FXString& OldMsg, const FXString& NewMsg, FXIcon* icn, FXuint whichbuttons);
-
-protected:
-	LCUpdateMessage()	{}
-	LCUpdateMessage(const LCUpdateMessage&);
-	LCUpdateMessage &operator=(const LCUpdateMessage&);
-
-public:
-	long onCmdClicked(FXObject*,FXSelector,void*);
-	long onCmdCancel(FXObject*,FXSelector,void*);
-
-	static const FXColor OldClr, NewClr;
-
-	enum
+	// Don't stumble over nested templates
+	for(n = 1; (t < Str.length() - 1) && (n != 0); t++)
 	{
-    ID_CLICKED_YES=FXDialogBox::ID_LAST,
-    ID_CLICKED_NO,
-    ID_CLICKED_OK,
-    ID_CLICKED_CANCEL,
-    ID_CLICKED_QUIT,
-    ID_CLICKED_SAVE,
-    ID_CLICKED_SKIP,
-    ID_CLICKED_SKIPALL,
-    ID_CLICKED_YESALL,
-    ID_CLICKED_NOALL,
-    ID_LAST
-    };
-
-	// Construct free floating message box with given caption, icon, and message texts
-	LCUpdateMessage(FXApp* app,const FXString& caption,const FXString& TopMsg, const FXString& OldMsg, const FXString& NewMsg,FXIcon* ic=NULL,FXuint opts=0,FXint x=0,FXint y=0);
-
-	static FXuint question(FXApp* app, FXuint opts, const FXString& caption, const FXString& TopMsg, const FXString& OldMsg, const FXString& NewMsg);
-};
-
-const FXColor LCUpdateMessage::OldClr = FXRGB(255, 0, 0);
-const FXColor LCUpdateMessage::NewClr = FXRGB(0, 255, 0);
-
-// Padding for message box buttons
-#define HORZ_PAD 30
-#define VERT_PAD 2
-
-#define MBOX_BUTTON_MASK   (MBOX_OK|MBOX_OK_CANCEL|MBOX_YES_NO|MBOX_YES_NO_CANCEL|MBOX_QUIT_CANCEL|MBOX_QUIT_SAVE_CANCEL|MBOX_SAVE_CANCEL_DONTSAVE)
-
-// Map
-FXDEFMAP(LCUpdateMessage) MMLCUpdateMessage[]=
-{
-	FXMAPFUNC(SEL_COMMAND,LCUpdateMessage::ID_CANCEL,LCUpdateMessage::onCmdCancel),
-	FXMAPFUNCS(SEL_COMMAND,LCUpdateMessage::ID_CLICKED_YES,LCUpdateMessage::ID_CLICKED_NOALL,LCUpdateMessage::onCmdClicked),
-};
-
-// Object implementation
-FXIMPLEMENT(LCUpdateMessage,FXDialogBox,MMLCUpdateMessage,ARRAYNUMBER(MMLCUpdateMessage))
-
-// Construct free floating message box with given caption, icon, and message texts
-LCUpdateMessage::LCUpdateMessage(FXApp* a,const FXString& caption,const FXString& TopMsg, const FXString& OldMsg, const FXString& NewMsg, FXIcon* icn, FXuint opts,FXint x,FXint y)
-	: FXDialogBox(a,caption,opts|DECOR_TITLE|DECOR_BORDER,x,y,0,0, 0,0,0,0, 4,4)
-{
-	Construct(TopMsg, OldMsg, NewMsg, icn, opts&MBOX_BUTTON_MASK);
-}
-
-void LCUpdateMessage::Construct(const FXString& TopMsg, const FXString& OldMsg, const FXString& NewMsg, FXIcon* icn, FXuint whichbuttons)
-{
-  FXButton *initial;
-  FXVerticalFrame* content=new FXVerticalFrame(this,LAYOUT_FILL_X|LAYOUT_FILL_Y);
-  FXHorizontalFrame* info=new FXHorizontalFrame(content,LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_FILL_X|LAYOUT_FILL_Y,0,0,0,0,10,10,10,10);
-  new FXLabel(info,FXString::null,icn,ICON_BEFORE_TEXT|LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_FILL_X|LAYOUT_FILL_Y);
-  FXVerticalFrame* msgs=new FXVerticalFrame(info,LAYOUT_FILL_X|LAYOUT_FILL_Y, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-
-  FXLabel* Top = new FXLabel(msgs,TopMsg,NULL,JUSTIFY_LEFT|LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_FILL_X);
-
-  FXMatrix* Mat = new FXMatrix(msgs, 2, MATRIX_BY_COLUMNS, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-
-	new FXLabel(Mat, "Old:", NULL, JUSTIFY_RIGHT | LAYOUT_FILL_X | LAYOUT_RIGHT);
-	FXLabel* Old = new FXLabel(Mat,OldMsg,NULL,JUSTIFY_LEFT|LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_FILL_X);	Old->setTextColor(OldClr);
-	new FXLabel(Mat, "New:", NULL, JUSTIFY_RIGHT | LAYOUT_FILL_X | LAYOUT_RIGHT);
-	FXLabel* New = new FXLabel(Mat,NewMsg,NULL,JUSTIFY_LEFT|LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_FILL_X);	New->setTextColor(NewClr);
-
-  new FXHorizontalSeparator(content,SEPARATOR_GROOVE|LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_FILL_X);
-  FXHorizontalFrame* buttons=new FXHorizontalFrame(content,LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_FILL_X|PACK_UNIFORM_WIDTH,0,0,0,0,10,10,5,5);
-  if(whichbuttons==MBOX_YES_YESALL_NO_NOALL_CANCEL)
-  {
-	  initial=new FXButton(buttons,tr("&Yes"),NULL,this,ID_CLICKED_YES,BUTTON_INITIAL|BUTTON_DEFAULT|FRAME_RAISED|FRAME_THICK|LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_CENTER_X,0,0,0,0,HORZ_PAD,HORZ_PAD,VERT_PAD,VERT_PAD);
-	  new FXButton(buttons,tr("Y&es to All"),NULL,this,ID_CLICKED_YESALL,BUTTON_INITIAL|BUTTON_DEFAULT|FRAME_RAISED|FRAME_THICK|LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_CENTER_X,0,0,0,0,HORZ_PAD,HORZ_PAD,VERT_PAD,VERT_PAD);
-    new FXButton(buttons,tr("&No"),NULL,this,ID_CLICKED_NO,BUTTON_DEFAULT|FRAME_RAISED|FRAME_THICK|LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_CENTER_X,0,0,0,0,HORZ_PAD,HORZ_PAD,VERT_PAD,VERT_PAD);
-	new FXButton(buttons,tr("Ign&ore All"),NULL,this,ID_CLICKED_NOALL,BUTTON_DEFAULT|FRAME_RAISED|FRAME_THICK|LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_CENTER_X,0,0,0,0,HORZ_PAD,HORZ_PAD,VERT_PAD,VERT_PAD);
-    new FXButton(buttons,tr("&Cancel"),NULL,this,ID_CLICKED_CANCEL,BUTTON_DEFAULT|FRAME_RAISED|FRAME_THICK|LAYOUT_TOP|LAYOUT_LEFT|LAYOUT_CENTER_X,0,0,0,0,HORZ_PAD,HORZ_PAD,VERT_PAD,VERT_PAD);
-    initial->setFocus();
+		if(!compare(&Str[t], markup_open, markup_open.length()))		n++;
+		else if(!compare(&Str[t], markup_close, markup_close.length()))	n--;
 	}
+
+	Str[t-1] = '|';
+	return t;
 }
-
-// Close dialog with a cancel
-long LCUpdateMessage::onCmdClicked(FXObject*,FXSelector sel,void*){
-  getApp()->stopModal(this,MBOX_CLICKED_YES+(FXSELID(sel)-ID_CLICKED_YES));
-  hide();
-  return 1;
-  }
-
-
-// Close dialog with a cancel
-long LCUpdateMessage::onCmdCancel(FXObject* sender,FXSelector,void* ptr){
-  return LCUpdateMessage::onCmdClicked(sender,FXSEL(SEL_COMMAND,ID_CLICKED_CANCEL),ptr);
-  }
-
-// Show a modal question dialog, in free floating window
-FXuint LCUpdateMessage::question(FXApp* app,FXuint opts, const FXString& caption,const FXString& TopMsg, const FXString& OldMsg, const FXString& NewMsg)
-{
-  FXGIFIcon icon(app,questionicon);
-  LCUpdateMessage box(app,caption,TopMsg, OldMsg, NewMsg,&icon,opts|DECOR_TITLE|DECOR_BORDER);
-  return box.execute(PLACEMENT_SCREEN);
-}
-// ---------------------------------
 
 size_t write_data(char* File, size_t size, size_t nmemb, FXString* Page)
 {
 	Page->append(File, size * nmemb);
-
 	return size * nmemb;
 }
 
-void RemoveWikiLinks(FXString& Str, const FXString* Del = Link)
+void RemoveWikiLinks(FXString& Str, const FXString& s_del = Link[0], const FXString& t_del = Link[1])
 {
 	FXint s = 0, t = 0, c = 0, len;
 
-	while((s = Str.find(Del[0], s)) != -1)
+	while((s = Str.find(s_del, s)) != -1)
 	{
 		t = Str.find('|', s);
-		c = Str.find(Del[1], s);
+		c = Str.find(t_del, s);
 
 		if((uint)t < (uint)c)	len = t - s + 1;
-		else                 	len = 2;
+		else                 	len = t_del.length();
 
 		Str.erase(s, len);
-		c -= len;
-		Str.erase(c, 2);
+		Str.erase(c - len, t_del.length());
 	}
 }
 
-void RemoveTemplate(FXString& Str, const FXString& Name, const FXString* Del = Tmpl)
+FXRex::Error RemoveTemplate(FXString& Str, const FXString& Name)
 {
-	FXint s = 0;
+	FXint s = 0, t = 0;
+	FXRex	Rex;
+	FXRex::Error Ret;
+
+	if(Ret = Rex.parse(Name, regexp_mode))	return Ret;
+
+	while(Rex.match(Str, &s, &t, FXRex::Forward, 1, s))
+	{
+		Str.erase(s, t-s);
+		t = GetBounds(Str, NULL, s, Tmpl[0], Tmpl[1]);
+		Str.erase(t-1, 2);
+	}
+	return Ret;
+}
+
+FXRex::Error RemoveLastElm(FXString& Str, const FXString& Name)
+{
+	FXint s = 0, t = 0;
 	FXString Sub;
-	if(Name.left(2) == Del[0])	Sub = Name;
-	else						Sub = Del[0] + Name;
+	FXRex	Rex;
+	FXRex::Error Ret;
 
-	while((s = Str.find(Sub, s)) != -1)
+	if(Ret = Rex.parse(Name, regexp_mode))	return Ret;
+
+	while(Rex.match(Str, &s, &t, FXRex::Forward, 1, s))
 	{
-		Str.erase(s, Sub.length());
-		s = Str.find(Del[1], s);
-		Str.erase(s, 2);
+		Str.erase(s, t-s);
+		t = GetBounds(Str, NULL, s, Tmpl[0], Tmpl[1]);
+		if( -1 != (s = Str.find('|', s)) )	Str.erase(s, t+1-s);
+		else								Str.erase(t-1, 2);
+	}
+	return Ret;
+}
+
+void RemoveHTMLPairs(FXString& Str, const FXString& markup_open, const FXString& markup_close)
+{
+	FXint s = 0, t = 0;
+
+	FXRex regexp_html[2];
+
+	regexp_html[0].parse(markup_open + ".*?" + markup_close, regexp_mode);
+	regexp_html[1].parse(markup_open + "/.*?" + markup_close, regexp_mode);
+
+	for(ushort c = 0; c < 2; c++)
+	{
+		while(regexp_html[c].match(Str, &s, &t, FXRex::Forward, 1, s))
+		{
+			Str.erase(s, t-s);
+		}
 	}
 }
 
-void RemoveHTMLPairs(FXString& Str, const FXString* Del = HTML)
+// Translate MediaWiki indents to [Repl]
+static void TranslateIndents(FXString& WD, const FXString& Repl = Space)
 {
-	FXint s = 0, t = 0, c = 0, len;
+	if(WD.empty())	return;
 
-	while((s = Str.find(Del[0], s)) != -1)
+	FXint s = 0, t;
+	const FXchar Indent = ':';
+	FXRex regexp_indent("^:", regexp_mode);
+
+	while(regexp_indent.match(WD, &s, &t, FXRex::Forward, 1, s))
 	{
-		while(Ascii::isSpace(Str[s - 1]))	s--;
-
-		t = Str.find(Del[1], s);	// Closing bracket of the start tag 
-		c = Str.find(Del[1], t + 1);// Closing bracket of the end tag
-
-		len = MAX(t,c) - s + 1;
-		
-		Str.erase(s, len);
+		while(WD[s] == Indent)
+		{
+			WD.replace(s, 1, Repl.text(), Repl.length());
+			s += Repl.length();
+		}
 	}
 }
 
-FXString GetTemplateElm(FXString& WD, const FXString& Tag, FXint s = 0)
+inline FXString TemplateElm(const FXString& WD, const FXString& Tag)
 {
-	FXint t;
+	FXString Ret(NamedValue(WD, Tag, "=", "|"));
+	return Ret.trim();
+}
 
-	if((s = WD.find(Tag, s))                == -1)	return "";
-	if((s = WD.find('=', s + Tag.length())) == -1)	return "";
-	if((t = WD.find('|', s))                == -1)	return "";
-	return WD.mid(s + 1, t - s - 1).trim();
+inline FXString TemplateElm_Comment(const FXString& WD, const FXString& Tag)
+{
+	FXString Ret(NamedValue(WD, Tag, "=", "|"));
+	TranslateIndents(Ret);
+	return Ret;
 }
 
 FXuint AskForUpdate(TrackInfo* TI, const FXString& Type, FXString* Old, FXString* New, FXuint* Ret, bool ShowStat = true)
 {
-	if(New->empty() || *Ret == MBOX_CLICKED_NOALL) return *Ret;
+	if(New->empty() || *Ret == UPDATE_NOALL) return *Ret;
 
 	// Remove line breaks for comparison
 	FXString o = *Old, n = *New;
@@ -242,80 +169,196 @@ FXuint AskForUpdate(TrackInfo* TI, const FXString& Type, FXString* Old, FXString
 	if(o == n)	return *Ret;
 
 	FXString Msg;
-	if(*Ret != MBOX_CLICKED_YESALL && !Old->empty())
+	if(*Ret != UPDATE_YESALL && !Old->empty())
 	{
 		Msg.format("Update %s on Track #%d?\n", Type, TI->Number);
-		*Ret = LCUpdateMessage::question(MW->getApp(), MBOX_YES_YESALL_NO_NOALL_CANCEL, PrgName, Msg, *Old, *New);
+		*Ret = BGMLib::UI_Update(Msg, *Old, *New);
 
-		if(*Ret != MBOX_CLICKED_YES && *Ret != MBOX_CLICKED_YESALL)	return *Ret;
+		if(*Ret != UPDATE_YES && *Ret != UPDATE_YESALL)	return *Ret;
 	}
-	if(ShowStat)	Msg.format("Update on Track #%d: %s -> %s\n", TI->Number, *Old, *New);
-	else			Msg.format("Updated %s on Track #%d\n", Type, TI->Number);
-	MW->PrintStat(Msg);
-	*Old = *New;
+	if(ShowStat)	Msg.format(" --> #%d: %s -> %s\n", TI->Number, *Old, *New);
+	else			Msg.format(" --> #%d: updated %s\n", TI->Number, Type);
+	BGMLib::UI_Stat(Msg);
+	*Old = *New;	// The actual assignment!
 	return *Ret;
 }
 
-const FXString Wiki_Name[2] = {"title", "titleEN"};
-const FXString Wiki_Comment[2] = {"comment", "translation"};
-
-FXuint UpdateTrack(GameInfo* GI, FXint ID, FXString WD, FXuint* MsgRet)
+// Compares two strings, returns false if one is empty
+bool CompareEx(FXString& s1, FXString s2)
 {
+	if(s1.empty() || s2.empty())	return false;
+	return !comparecase(s1,s2);
+}
+
+static TrackInfo* Eval_MusicRoom(GameInfo* GI, FXString& WD, FXuint* MsgRet)
+{
+	static const FXString Wiki_Category("category");
+	static const FXString Wiki_Name[LANG_COUNT] = {"title", "titleEN"};
+	static const FXString Wiki_Comment[LANG_COUNT] = {"comment", "translation"};
+	static const FXString Wiki_Source("source");
+
+	FXString Category;
 	IntString Name, Comment;
-	TrackInfo* Cur;
+	FXuint TrackNo;
+	List<IntString>	Afterword;
+	ListEntry<IntString>* TrackCmt, *NewCmt;
+	IntString* TC, *NC;
+	FXString SrcDesc, SrcVal;
+	TrackInfo* Cur = NULL;
+	ushort s = 1, l;
 
-	remove_sub(WD, "}}");
+	remove_sub(WD, Tmpl[1]);
 
-	Name[LANG_JP] = GetTemplateElm(WD, Wiki_Name[LANG_JP]);	RemoveHTMLPairs(Name[LANG_JP]);
-	Name[LANG_EN] = GetTemplateElm(WD, Wiki_Name[LANG_EN]);	RemoveHTMLPairs(Name[LANG_EN]);
-	Comment[LANG_JP] = GetTemplateElm(WD, Wiki_Comment[LANG_JP]);
-	Comment[LANG_EN] = GetTemplateElm(WD, Wiki_Comment[LANG_EN]);
+	Category = TemplateElm(WD, Wiki_Category);
+	TrackNo = Category.after('#').toUInt();
 
-	ListEntry<TrackInfo>* CurTrack = GI->Track.First();
+	for(l = 0; l < LANG_COUNT; l++)
+	{
+		Name[l] = TemplateElm(WD, Wiki_Name[l]);	remove_sub(Name[l], LineBreak[1]);
+		Comment[l] = TemplateElm_Comment(WD, Wiki_Comment[l]);
+	}
+
+	// Multiple source handling
+	do
+	{
+		// JP comment
+		SrcVal.format("%s%d", Wiki_Comment[LANG_JP], s);	
+		SrcVal = TemplateElm_Comment(WD, SrcVal);
+
+		if(SrcVal.empty())	break;
+		NC = &Afterword.Add()->Data;
+
+		NC->s[LANG_JP].assign(SrcVal);
+
+		// EN comment
+		SrcVal.format("%s%d", Wiki_Comment[LANG_EN], s);
+		NC->s[LANG_EN] = TemplateElm_Comment(WD, SrcVal);
+
+		// Source (if present)
+		SrcDesc.format("%s%d", Wiki_Source, s);
+		SrcDesc = TemplateElm(WD, SrcDesc);
+
+		if(!SrcDesc.empty())
+		{
+			SrcDesc.prepend('(');	SrcDesc.append(")\n");
+			NC->s[LANG_JP].prepend(SrcDesc);
+			NC->s[LANG_EN].prepend(SrcDesc);
+		}
+
+		s++;
+	}
+	while(1);
+
+	ListEntry<TrackInfo>* CurTrack;
+	if(TrackNo)	CurTrack = GI->Track.Get(TrackNo - 1);
+	else		CurTrack = GI->Track.First();
+
 	for(ushort Temp = 0; (Temp < GI->TrackCount) && CurTrack; Temp++)	// No spoilers for trial versions! :-)
 	{
 		Cur = &(CurTrack->Data);
 
-		if( (Cur->Name[LANG_JP] == Name[LANG_JP]) || (Cur->Name[LANG_EN] == Name[LANG_EN])
-#ifdef _VERY_PARANOID_
-			(Cur->Comment[LANG_JP] == Comment[LANG_JP]) ||	// Um... Do we really want to get THAT far?
-			(Cur->Comment[LANG_EN] == Comment[LANG_EN])
-#endif
-			)
+		if(CompareEx(Cur->Name[LANG_JP], Name[LANG_JP]) || CompareEx(Cur->Name[LANG_EN], Name[LANG_EN]))
 		{
 			// OK, found the right track
-			if(AskForUpdate(Cur, "Japanese Name", &Cur->Name[LANG_JP], &Name[LANG_JP], MsgRet) == MBOX_CLICKED_CANCEL)	return *MsgRet;
-			if(AskForUpdate(Cur, "English Name", &Cur->Name[LANG_EN], &Name[LANG_EN], MsgRet) == MBOX_CLICKED_CANCEL)	return *MsgRet;
-			if(AskForUpdate(Cur, "Japanese Comment", &Cur->Comment[LANG_JP], &Comment[LANG_JP], MsgRet, false) == MBOX_CLICKED_CANCEL)	return *MsgRet;
-			if(AskForUpdate(Cur, "English Comment", &Cur->Comment[LANG_EN], &Comment[LANG_EN], MsgRet, false) == MBOX_CLICKED_CANCEL)	return *MsgRet;
+			for(l = 0; l < LANG_COUNT; l++)
+			{
+				if(AskForUpdate(Cur, BGMLib::LI[l].GUILang + " title", &Cur->Name[l], &Name[l], MsgRet) == UPDATE_CANCEL)	return Cur;
+				if(AskForUpdate(Cur, BGMLib::LI[l].GUILang + " comment", &Cur->Comment[l], &Comment[l], MsgRet, false) == UPDATE_CANCEL)	return Cur;
+			}
+
+			NewCmt = Afterword.First();
+			TrackCmt = Cur->Afterword.First();
+			while(NewCmt)
+			{
+				NC = &NewCmt->Data;
+				SrcDesc = NC->s[0].left(NC->s[0].find('\n'));
+
+				if(!TrackCmt)	TrackCmt = Cur->Afterword.Add();
+				TC = &TrackCmt->Data;
+
+				for(l = 0; l < LANG_COUNT; l++)
+				{
+					if(AskForUpdate(Cur, BGMLib::LI[l].GUILang + " supplementary comment", &TC->s[l], &NC->s[l], MsgRet, false) == UPDATE_CANCEL)	return Cur;
+				}
+
+				NewCmt = NewCmt->Next();
+				TrackCmt = TrackCmt->Next();
+			}
 			
 			CurTrack = NULL;
 		}
 		else	CurTrack = CurTrack->Next();
 	}
-	return *MsgRet;
+	return Cur;
 }
 
-bool Update(GameInfo* GI)
+static void Eval_MusicRoom_Cmt(TrackInfo* TI, const ushort& Index, FXString& WD, FXuint* MsgRet)
+{
+	static const FXString Wiki_Cmt[LANG_COUNT] = {"ja", "en"};
+
+	FXString New;
+	FXString Caption;
+
+	ListEntry<IntString>* TrackCmt = TI->Afterword.Get(Index);
+	if(!TrackCmt)	TrackCmt = TI->Afterword.Add();
+
+	Caption.format(" comment (paragraph #%d)", Index + 1);
+
+	for(ushort l = 0; l < LANG_COUNT; l++)
+	{
+		New = TemplateElm_Comment(WD, Wiki_Cmt[l]);
+		if(AskForUpdate(TI, BGMLib::LI[l].GUILang + Caption, &TrackCmt->Data.s[l], &New, MsgRet, false) == UPDATE_CANCEL)	return;
+	}
+
+	return;
+}
+
+bool Download(CURL* C, const FXString& URL, FXString* Buffer)
+{
+	FXString Str;
+
+	curl_easy_setopt(C, CURLOPT_WRITEDATA, Buffer);
+	curl_easy_setopt(C, CURLOPT_URL, URL);
+	CURLcode CRet = curl_easy_perform(C);
+	if(CRet != CURLE_OK)
+	{
+		Str = curl_easy_strerror(CRet);
+		Str.prepend("\nERROR: ");
+		Str.append('\n');
+		BGMLib::UI_Stat(Str);
+		return false;
+	}
+	return true;
+}
+
+static bool Update_Finish(CURL* C);
+static bool Update_Cancel(CURL* C);
+static bool Update_Complete(CURL* C);
+
+static const FXString Wiki_MusicRoom(Tmpl[0] + "MusicRoom");
+static const FXString Wiki_MusicRoom_Cmt(Wiki_MusicRoom + "/Cmt");
+
+bool Update(GameInfo* GI, FXString& WikiURL)
 {
 	if(GI->WikiPage.empty())	return false;
 
-	bool Ret = true;
+	bool Ret;
 	FXuint MsgRet;
 
 	FXString URL, Page, Str;
-	FXint s = 0, t, ID = 1;
+	FXint s = 0, t, Index = 0;
+	FXint p = 0;
 	CURL* C = NULL;
-	FXColor Base = MW->getApp()->getBaseColor();
+	TrackInfo* TI = NULL;
+	ListEntry<IntString>* TrackCmt = NULL;
 
 	ulong RevID;
 
-	Str.format("Getting current track info from Touhou Wiki (%s)...", GI->WikiPage);
-	MW->PrintStat(Str);
+	URL = WikiURL;
+	if( (s = URL.find("/wiki")) != -1)	URL.trunc(s);
 
-	GI->WikiPage.substitute(' ', '_');
-
-	URL.format(WikiURL.text(), GI->WikiPage);
+	Str.format("Getting track info from (%s).\n  (%s)... ", URL, GI->WikiPage);
+	BGMLib::UI_Stat(Str);
 
 	curl_global_init(CURL_GLOBAL_ALL);
 
@@ -324,26 +367,12 @@ bool Update(GameInfo* GI)
 	curl_easy_setopt(C, CURLOPT_FOLLOWLOCATION, 1);
 	curl_easy_setopt(C, CURLOPT_NOPROGRESS, 1);
 	curl_easy_setopt(C, CURLOPT_WRITEFUNCTION, write_data);
-	curl_easy_setopt(C, CURLOPT_WRITEDATA, &Page);
-	curl_easy_setopt(C, CURLOPT_URL, URL);
 
-	CURLcode CRet = curl_easy_perform(C);
-	if(CRet != CURLE_OK)
-	{
-		switch(CRet)
-		{
-		case CURLE_COULDNT_RESOLVE_HOST:	Str = "Couldn't resolve URL, no internet connection!";
-		break;
-		case CURLE_OPERATION_TIMEDOUT:		Str = "Timeout reached!";
-		break;
-		default:	Str = "Couldn't connect to Wiki page!";
-		}
-		Str.prepend("\nERROR: ");
-		Str.append('\n');
-		MW->PrintStat(Str);
-		Ret = false;
-		goto Cleanup;
-	}
+DL:
+	GI->WikiPage.substitute(' ', '_');
+	URL.format(WikiURL.text(), GI->WikiPage);
+
+	if(!Download(C, URL, &Page))	return Update_Finish(C);
 
 	// Get revision id
 	// ---------------
@@ -356,101 +385,161 @@ bool Update(GameInfo* GI)
 
 	if(RevID == GI->WikiRev)
 	{
-		MW->PrintStat("\nTrack info is already up-to-date.\n");
-		Ret = false;
-		goto Cleanup;
+		BGMLib::UI_Stat("\nTrack info is already up-to-date.\n");
+		return Update_Finish(C);
 	}
 	// ---------------
-
-	MW->PrintStat("done, evaluating...\n");
 
 	// Prepare buffer
 	// --------------
 	if((s = Page.find("<text xml:space=\"preserve\">", s)) == -1)
 	{
-		MW->PrintStat("Wiki data is corrupted, update not possible!");
-		Ret = false;
-		goto Cleanup;
+		BGMLib::UI_Stat("\nWiki data is corrupted, update not possible!");
+		return Update_Finish(C);
 	}
 
 	Page = Page.right(Page.length() - s);
 	s = 0;
+
+	// Resolve Wiki redirects
+	// ----------------------
+	Str = NamedValue(Page, "#REDIRECT", "[[", "]]");
+	if(!Str.empty())
+	{
+		GI->WikiPage = Str;
+		Str.format("\nResolving #REDIRECT to (%s)...", GI->WikiPage);
+		BGMLib::UI_Stat(Str);
+		goto DL;
+	}
+	// ----------------------
+
+	BGMLib::UI_Stat("\n ...done, evaluating...\n");
 		
-	remove_sub(Page, LineBreak[1]);
-	RemoveTemplate(Page, "lang|en|");
-	RemoveTemplate(Page, "lang|jp|");
-	
+	remove_sub(Page, Face);
+	RemoveTemplate(Page, "\\{\\{lang\\|.*?\\|");
+
+	// Remove references
+	{
+		FXRex regexp_ref;
+		if(!regexp_ref.parse("\\{\\{ref\\|.*?\\}\\}", regexp_mode))
+		{
+			while(regexp_ref.match(Page, &s, &t, FXRex::Forward, 1, s))
+			{
+				Page.erase(s, t-s);
+			}
+		}
+	}
+
+	RemoveLastElm(Page, "\\{\\{ruby-.*?\\|");
 	RemoveWikiLinks(Page);
 
 	// Empty space in some comments
 	const char Empty[2] = {LineBreak[1], ' '};
-	FXchar Moonspace[4] = {' ', (char)0xE3, (char)0x80, (char)0x80};	// STUPID "IDEOGRAPHIC WHITE SPACE"
+	FXchar Space[4] = {' ', Moonspace[0], Moonspace[1], Moonspace[2]};	// STUPID "IDEOGRAPHIC WHITE SPACE"
 
 	Page.substitute(Empty, 2, &LineBreak[1], 1, true);
 
-									Page.substitute(&Moonspace[0], 4, &Moonspace[0], 1, true);
-	Moonspace[0] = LineBreak[1];	Page.substitute(&Moonspace[0], 4, &Moonspace[0], 1, true);
-	Moonspace[0] = '=';         	Page.substitute(&Moonspace[0], 4, &Moonspace[0], 1, true);
+								Page.substitute(Space, 4, Space, 1, true);
+	Space[0] = '=';         	Page.substitute(Space, 4, Space, 1, true);
+	Space[0] = LineBreak[1];	Page.substitute(Space, 4, Space, 1, true);
 	
 	Page.substitute("  ", " ");
-	remove_sub(Page, "  ");
 	// HTML
 	Page.substitute("&gt;", ">");
 	Page.substitute("&lt;", "<");
 
-	// I'm not in the mood to write functions anymore
-	while((s = Page.find("<br", s)) != -1)
+	// Magical Astronomy...
 	{
-		t = Page.find(">", s);
+		FXRex regexp_sup("<sup>", regexp_mode);
+		FXRex regexp_external("\\[.*? ", regexp_mode);
 
-		Page.replace(s, t-s+1, &LineBreak[1]);
-		s++;
+		s = 0;
+		// Closing tag gets deleted automatically below
+		while(regexp_sup.match(Page, &s, &t, FXRex::Forward, 1, s))
+		{
+			Page.replace(s, t-s, "^", 1);
+		}
+		s = 0;
+		while(regexp_external.match(Page, &s, &t, FXRex::Forward, 1, s))
+		{
+			Page.erase(s, t-s);
+			if( (s = Page.find(']', s)) != -1)	Page.erase(s);
+		}
 	}
 
-	s = 0;
+	RemoveHTMLPairs(Page, HTML[0], HTML[1]);
 
-	while((s = Page.find("{{ref", s)) != -1)
-	{
-		t = Page.find("}}", s);
-
-		Page.erase(s, t-s+1);
-		s++;
-	}
 	Page.substitute("&quot;", "\"");
 	// --------------
 
-	s = 0;
+	// Start processing...
+	s = t = p = 0;
+	
+	FXRex regexp_musicroom("\\{\\{MusicRoom(?!/Cmt)", regexp_mode);
+	FXRex regexp_musicroom_cmt("\\{\\{MusicRoom/Cmt", regexp_mode);
 
-	// Make our fancy colors actually readable
-	// MW->getApp()->setBaseColor(FXRGB(0, 0, 0));
+	Ret = regexp_musicroom.match(Page, &s, &t, FXRex::Forward, 1, p);
 
-	while((s = Page.find("{{MusicRoom", s)) != -1)
+	// s = start position of current template (temporary)
+	// t = (end) position of next MusicRoom template to evaluate
+	// p = end position of a MusicRoom/Cmt template
+	while(Ret)
 	{
-		s = Page.find('|', s);
-		t = Page.find("}}", s);
-
-		Page[t] = '|'; t++;
-
-		UpdateTrack(GI, ID, Page.mid(s, t - s), &MsgRet);
+		t = GetBounds(Page, &s, t, Tmpl[0], Tmpl[1]);
+		TI = Eval_MusicRoom(GI, Page.mid(s, t-s), &MsgRet);
+		p = t;
 		
-		if(MsgRet == MBOX_CLICKED_CANCEL)
+		if(MsgRet == UPDATE_CANCEL)	return Update_Cancel(C);
+		else if(MsgRet == UPDATE_NOALL)	break;
+
+		// Next MusicRoom
+		if(!(Ret = regexp_musicroom.match(Page, &s, &t, FXRex::Forward, 1, p)))	t = Page.length();
+		
+		if(!TI)	continue;
+
+		// If we find a table end before the next MusicRoom template,
+		// we may probably have some {{MusicRoom/Cmt}}s there
+
+		s = Page.find("|}", p + 1);
+		if(s < t)
 		{
-			MW->PrintStat("Update canceled.\n");
-			Page.clear();
-			Ret = false;
-			goto Cleanup;
+			Index = 0;
+			
+			while(regexp_musicroom_cmt.match(Page, &s, &p, FXRex::Forward, 1, p, t))
+			{
+				p = GetBounds(Page, &s, p, Tmpl[0], Tmpl[1]);
+				Eval_MusicRoom_Cmt(TI, Index, Page.mid(s, p-s), &MsgRet);
+				Index++;
+
+				if(MsgRet == UPDATE_CANCEL)	return Update_Cancel(C);
+				else if(MsgRet == UPDATE_NOALL)	Ret = false;
+			}
 		}
-		else if(MsgRet == MBOX_CLICKED_NOALL)	s = Page.length() + 1;
-		ID++;
 	}
-	MW->PrintStat("Update completed.\n");
+	
 	GI->WikiRev = RevID;
 
-Cleanup:
+	return Update_Complete(C);
+}
+
+static bool Update_Finish(CURL* C)
+{
+	BGMLib::UI_Stat("\n");
 	curl_easy_cleanup(C);
 	curl_global_cleanup();
+	return false;
+}
 
-	MW->getApp()->setBaseColor(Base);
-	
-	return Ret;
+static bool Update_Cancel(CURL* C)
+{
+	BGMLib::UI_Stat("Update canceled.\n");
+	Update_Finish(C);
+	return false;
+}
+
+static bool Update_Complete(CURL* C)
+{
+	BGMLib::UI_Stat("Update completed.\n");
+	Update_Finish(C);
+	return true;
 }

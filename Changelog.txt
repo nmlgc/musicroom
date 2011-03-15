@@ -1,7 +1,50 @@
-﻿Touhou Project BGM Extractor
-----------------------------
+﻿Music Room Interface
+--------------------
 Changelog
-----------------------------
+--------------------
+
+
+NOTE: This file only lists changes to the user interface program.
+      Refer to the bgmlib changelog for changes to supported games and the back-end engine.
+
+
+- 2011/03/08 (Version 2.0)
+
+*sigh* where should I start.
+
+New features:
+* Renamed project to "Music Room Interface", which is a way less bulky name, sounds better, and should still preserve the essence
+* Replaced the static game name label with a list box, offering direct game selection, and support for games without directories
+* gamedirs.cfg saves those local game directories, providing direct access to the games on subsequent program calls.
+
+* Banshiryuu (and PBG6 archive) support. If there are other games with music encrypted in PBG6, please let me know!
+* Added a nice progress bar used for various time-consuming tasks
+
+* Included the Ogg Vorbis encoder natively in the program, and added support for chained bitstream output.
+  That only works with either lossless or chained bitstream Ogg Vorbis input files, though
+
+* Added a nice encoding settings dialog
+
+Improvements:
+* Improved automatic search of the tag update function
+* Improved readability of Wiki update text. Should now look OK against every skin ever.
+* Updater now automatically resolves Wiki redirects (because the Touhou Wiki guys can't stop moving stuff around -.-)
+* Ported streaming engine to DirectSound for enhanced features. Quite nerve-wracking porting work, until I decided to reinvent the wheel.
+  Yeah, I wanted to use OpenAL instead, but all this 3D stuff is complete overkill for a project like this. And SDL's too basic, so...
+  that basically seals all plans for a native Linux version. But hey, Wine's good enough by now, so nobody should care.
+* Moved some information from the readme file into the program, because no one reads readme files after all
+* Many other, lesser speed increases in other places. Yeah, I played around a bit for no real reason than to show off better profiling times.
+* Status box now replaces game names if language is switched
+
+Technical:
+* Split the program into a back-end library (bgmlib) and the front-end GUI part (musicroom)
+* Entirely recoded the tagging engine to get rid of the bloat and some bugs of taglib.
+  Yes, that was a retarded idea, and one week of wasted work, but now it's less ugly (?),
+  and tailor-made for the needs of the international Touhou community and future i18n plans
+* Many lesser speed increases in other places. Yeah, I played around a bit for no real reason than to show off better profiling times.
+* musicroom.exe now links directly against the native msvcrt.dll. Say goodbye to 1 MB of useless M$ DLLs
+
+----
 
 - 2010/11/16
 * The "Yes" option in the Wiki update dialog is actually working now. Seems like I failed logic yet again.
@@ -31,4 +74,4 @@ Changelog
 * Fixed an oversight with the silence removal, which was checked byte- instead of sample-wise (yes, embarrassing, I know).
 
 - 2010/08/14
-* Initial release, containing music data from TH06 to TH12.8
+* Initial release, named "Touhou Project BGM Extractor", containing music data from TH06 to TH12.8
