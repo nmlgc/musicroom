@@ -139,7 +139,7 @@ bool MRTag_Ogg::FmtOpen(FXFile& In, FXint* FTP, FXint* FTS, FXint* SSP)
 	In.position(0);
 
 	ogg_sync_init(&oy);
-	bytes = update_sync(In, &oy);
+	bytes = ogg_update_sync(In, &oy);
 
 	// Get the first page.
     if(ogg_sync_pageout(&oy,&og)!=1)
@@ -194,7 +194,7 @@ bool MRTag_Ogg::FmtOpen(FXFile& In, FXint* FTP, FXint* FTS, FXint* SSP)
 				}
 			}
 		}
-		bytes = update_sync(In, &oy);
+		bytes = ogg_update_sync(In, &oy);
 		// End of file before finding all Vorbis headers!
 		if(bytes==0 && i<2)	return false;
 	}
@@ -235,7 +235,7 @@ mrerr MRTag_Ogg::FmtSave(FXFile& Out, FXint TagSize, FXFile& In, FXint* Rewrite,
 	
 	// No, just rewriting the page if enough PAD is present in the file is not working for whatever reason...
 	ogg_stream_init(&stream_out, os.serialno);
-	write_ov_headers(Out, &stream_out, &vi, &vc);
+	vorbis_write_headers(Out, &stream_out, &vi, &vc);
 
 	// Rewrite file by copying the Ogg pages, instead of doing a raw copy of the old file
 	// Be sure to copy back every single bitstream!
@@ -244,7 +244,7 @@ mrerr MRTag_Ogg::FmtSave(FXFile& Out, FXint TagSize, FXFile& In, FXint* Rewrite,
 		int c = 0;
 		ogg_packetcopy(Out, &stream_out, In, &os, &oy);
 
-		if(update_sync(In, &oy) == 0)	break;
+		if(ogg_update_sync(In, &oy) == 0)	break;
 
 		ogg_stream_clear(&os);
 		ogg_stream_reset_serialno(&stream_out, ++stream_out.serialno);
@@ -276,9 +276,9 @@ mrerr MRTag_Ogg::FmtSave(FXFile& Out, FXint TagSize, FXFile& In, FXint* Rewrite,
 					c++;
 				}
 			}
-			else if(c < 3)	update_sync(In, &oy);
+			else if(c < 3)	ogg_update_sync(In, &oy);
 		}
-		write_ov_headers(Out, &stream_out, &vi, &header, &vc, &header_code);
+		vorbis_write_headers(Out, &stream_out, &vi, &header, &vc, &header_code);
 	}
 	*Rewrite = -1;
 	ogg_stream_clear(&stream_out);

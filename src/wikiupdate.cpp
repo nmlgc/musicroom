@@ -276,9 +276,12 @@ static TrackInfo* Eval_MusicRoom(GameInfo* GI, FXString& WD, FXuint* MsgRet)
 				if(!TrackCmt)	TrackCmt = Cur->Afterword.Add();
 				TC = &TrackCmt->Data;
 
+				if(!SrcDesc.empty())	SrcDesc.prepend(" ");
+				SrcDesc.prepend(" supplementary comment");
+
 				for(l = 0; l < LANG_COUNT; l++)
 				{
-					if(AskForUpdate(Cur, BGMLib::LI[l].GUILang + " supplementary comment", &TC->s[l], &NC->s[l], MsgRet, false) == UPDATE_CANCEL)	return Cur;
+					if(AskForUpdate(Cur, BGMLib::LI[l].GUILang + SrcDesc, &TC->s[l], &NC->s[l], MsgRet, false) == UPDATE_CANCEL)	return Cur;
 				}
 
 				NewCmt = NewCmt->Next();

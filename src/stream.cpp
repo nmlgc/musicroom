@@ -280,6 +280,7 @@ void Streamer::CloseFile()
 	{
 		ov_clear(&SF);
 		BGMFile.close();
+		Track = NULL;
 	}
 	FXFile::remove(OggPlayFile);
 	ClearBuffer();	// Necessary for game switches!

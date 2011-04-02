@@ -78,7 +78,7 @@ protected:
 	FXString DirDialog(const FXString& Title);	// Shows a directory selection dialog and returns the selected directory
 
 public:
-	MainWnd(FXApp* App);
+	MainWnd(FXApp* App, FXIcon* AppIcon = NULL);
 
 	FXString StatCache;	// PrintStat collector
 	FXString Notice;	// Personal appeal cache

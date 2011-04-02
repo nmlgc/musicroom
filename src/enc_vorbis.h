@@ -31,8 +31,6 @@ public:
 	float	Quality;	// Vorbis quality setting
 	bool	ChainStreamAssemble;	// Create chained bitstream output files where possible
 
-	float	QualityToBitrate(const float& q);
-
 	void	DlgCreate(FXVerticalFrame* Frame, FXDialogBox* Target, const FXuint& Msg);
 	void	DlgPoll(FXDialogBox* Parent);
 	bool	DlgApply(FXDialogBox* Parent);

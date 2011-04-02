@@ -207,7 +207,6 @@ mrerr MRTag::Open(const FXString& _FN)
 bool MRTag::ReadTags()
 {
 	if(!File.isOpen())	return false;
-	if(FTS == 0)	return false;	// No tags present
 
 	return FmtReadTags(File);
 }
@@ -264,7 +263,7 @@ mrerr MRTag::Save()
 	Out.close();
 	File.close();
 
-	if(Move)	return (mrerr)FXFile::moveFiles(TempFN, FN, true);
+	if(Move)	return FXFile::moveFiles(TempFN, FN, true) ? SUCCESS : ERROR_FILE_ACCESS;
 	else		return Ret;
 }
 

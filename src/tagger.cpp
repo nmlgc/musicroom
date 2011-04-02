@@ -251,7 +251,6 @@ bool Tagger::Search(TrackInfo* TI, const FXString& Ext, FXString* FN)
 				Ret = true;
 			}
 		}
-		Test->Clear();
 		f++; c++;
 	}
 	SAFE_DELETE(Test);
@@ -305,12 +304,12 @@ FXint Tagger::run()
 		
 		mrerr Ret = Tag(Track, FN, Ext);
 
-		if(Ret != SUCCESS)
+		/*if(Ret != SUCCESS)
 		{
 			if(Ret == ERROR_FILE_ACCESS)	Stat.format("\n%s, tags not written!", BGMLib::WriteError);
 			else							Stat.format("\nERROR: File structure broken or not supported!");
 			BGMLib::UI_Stat_Safe(Stat);
-		}
+		}*/
 	}
 	while( (CurTrack = CurTrack->Next()) && !StopReq);
 

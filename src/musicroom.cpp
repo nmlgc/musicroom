@@ -61,7 +61,7 @@ FXString OutPath;	// Output directory
 
 // String Constants
       FXString PrgName = "Music Room Interface";
-const FXString PrgVer = "v2.0";
+const FXString PrgVer = "v2.0.1";
 const FXString NoGame = "(no game loaded)";
       FXString CfgFile = "musicroom.cfg";
 	  FXString LGDFile = "gamedirs.cfg";
@@ -72,8 +72,12 @@ const FXString DecodeFile = DumpFile + ".raw";
 	  FXString OggPlayFile = "play.ogg";
 const FXString Cmp[LANG_COUNT] = {L"作曲者", "Composer"};
 
+extern const unsigned char ICON_AKYU[];
+
 int main(int argc, char* argv[])
 {
+	FXIcon* AppIcon;
+
 	SetupPM();
 
 	// This will fix the issue that our current directory stays at %HOMEPATH%
@@ -113,7 +117,9 @@ int main(int argc, char* argv[])
 
 	PrgName += " " + PrgVer;
 
-	MWBack = new MainWnd(&App);
+	AppIcon = new FXICOIcon(&App, ICON_AKYU);
+
+	MWBack = new MainWnd(&App, AppIcon);
 	MW = &MainWndFront::Inst();
 	App.create();
 
@@ -141,6 +147,8 @@ int main(int argc, char* argv[])
 	MW->Clear();
 
 	BGMLib::Clear();
+
+	SAFE_DELETE(AppIcon);
 
 #ifdef WIN32
 #ifdef _DEBUG

@@ -1,4 +1,4 @@
-Music Room Interface Readme
+﻿Music Room Interface Readme
 ===========================
 
 1. About
@@ -164,6 +164,16 @@ Since I don't have those hacking skills, I couldn't support these games without 
 
 7. Version History
 ------------------
+
+- 2011/03/28 (Version 2.0.1)
+* Title bar now shows the active game's name and our Akyu icon
+* Added tagging support for 「Shuusou Gyoku」 and 「ZUN's Strange Works」
+* Fixed slightly wrong starting position for Phantasmagoria of Flower View's おてんば恋娘の冒険
+* Fixed wrong looping values for the entirety of 「Mountain of Faith」 and 「Undefined Fantastic Object」's 幽霊客船の時空を越えた旅
+* Fixed a crash on game loading
+
+----
+
 - 2011/03/08 (Version 2.0)
 
 *sigh* where should I start.
@@ -207,6 +217,8 @@ Technical:
 * Many lesser speed increases in other places. Yeah, I played around a bit for no real reason than to show off better profiling times.
 * musicroom.exe now links directly against the native msvcrt.dll. Say goodbye to 1 MB of useless DLLs
 
+----
+
 - 2010/11/16
 * The "Yes" option in the Wiki update dialog is actually working now. Seems like I failed logic yet again.
 * You may now enter fractional fade durations
@@ -247,7 +259,7 @@ Technical:
 - Shrinemaiden Forum
 
 "Adorei o programa *-*"
-- Santu�rio Hakurei
+- Santuário Hakurei
 
 "Supersedes all other utilities made so far."
 - Touhou Wiki

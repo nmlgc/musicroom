@@ -8,6 +8,12 @@ NOTE: This file only lists changes to the user interface program.
       Refer to the bgmlib changelog for changes to supported games and the back-end engine.
 
 
+- 2011/03/28 (Version 2.0.1)
+* Title bar now shows the active game's name and our Akyu icon
+* Fixed a crash on game loading
+
+----
+
 - 2011/03/08 (Version 2.0)
 
 *sigh* where should I start.

@@ -33,29 +33,6 @@
 
 #include <assert.h>
 
-// Quality to bitrate mapping. Adapted from vorbisenc.c.
-// C++ lesson #?: Too much static enforcement can piss off coders, because it forces them to copy stuff!
-// -------
-static const double rate_mapping_44_stereo[12]=
-{
-  22500.,32000.,40000.,48000.,56000.,64000.,
-  80000.,96000.,112000.,128000.,160000.,250001.
-};
-
-float Encoder_Vorbis::QualityToBitrate(const float& q)
-{
-	float ds = 0.0, _is;
-	int is = 0.0;
-
-	ds =modf(q, &_is);
-
-	if(ds < 0)	{is = _is;	ds = 1.0+ds;}
-	else		{is = _is+1;}
-
-	return((rate_mapping_44_stereo[is]*(1.-ds)+rate_mapping_44_stereo[is+1]*ds)*2.);
-}
-// -------
-
 // Settings
 // --------
 void Encoder_Vorbis::FmtReadConfig(ConfigParser* Sect)
@@ -115,7 +92,7 @@ void Encoder_Vorbis::DlgPoll(FXDialogBox* Parent)
 {
 	FXString Str;
 	FXfloat New = Q->getValue();
-	Str.format("~%.0f kbps, q%.1f", QualityToBitrate(New) / 1000.0f, New);
+	Str.format("~%.0f kbps, q%.1f", vorbis_quality_to_bitrate(New) / 1000.0f, New);
 
 	EstBR->setText(Str);
 }
@@ -198,7 +175,7 @@ bool Encoder_Vorbis::Encode(const FXString& DestFN, const FXString& SrcFN, Extra
 	if(!ES.setup(&V.Out, Freq, Quality / 10.0f))	return false;
 
 	ogg_stream_init(&ES.stream_out, rand());
-	write_ov_headers(V.Out, &ES.stream_out, &ES.vi, &TF->vc);
+	vorbis_write_headers(V.Out, &ES.stream_out, &ES.vi, &TF->vc);
 
 	while(!eos && !StopReq)
 	{
@@ -296,6 +273,7 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 	ogg_int64_t CopySamples = -1;
 	ogg_int64_t StartSample = 0;
 	ogg_int64_t StreamLen;
+	long EncLen;
 
 	long c = 0;
 	
@@ -325,23 +303,23 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 	if(GI->Vorbis)
 	{
 		Link = ov_bitstream_seek(&VF, V.ts_data, true);
-		write_ov_headers(V.Out, &ES.stream_out, VF.vi, &TF->vc);
+		vorbis_write_headers(V.Out, &ES.stream_out, VF.vi, &TF->vc);
 
 		StreamLen = ov_pcm_total(&VF, Link);
+
+		EncLen = TI->GetByteLength(SilRem, LoopCnt, FadeDur);
 	}
 	else
 	{
-		long EncLen;
 		BGMLib::UI_Stat_Safe("intro...");
-		write_ov_headers(V.Out, &ES.stream_out, &ES.vi, &TF->vc);
+		vorbis_write_headers(V.Out, &ES.stream_out, &ES.vi, &TF->vc);
 
 		EncLen = TI->GetByteLength(SilRem, 1, fabs(FadeDur));
 		if(V.FadeStart < EncLen)	EncLen = V.FadeStart + V.FadeBytes;
 
-		MW->ProgConnect(&V.d, EncLen);
-
 		StreamLen = V.tl - ( (TI->FS != 0) ? 0 : V.ts_data);
 	}
+	MW->ProgConnect(&V.d, EncLen);
 
 	if(StreamLen > V.FadeStart)
 	{
@@ -352,9 +330,14 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 
 	if(GI->Vorbis)
 	{
-		ogg_packetcopy(V.Out, &ES.stream_out, &VF, CopySamples, StartSample);
+		V.d += ogg_packetcopy(V.Out, &ES.stream_out, &VF, CopySamples, StartSample) * 4;
 		if(StopReq)	return StopReq = false;
-		if(CopySamples == -1)	Link = ov_bitstream_seek(&VF, V.tl, true);
+		if(CopySamples == -1)
+		{
+			// It's better to assume that the bitstreams of one track are adjacent
+			ov_raw_seek(&VF, VF.offsets[VF.current_link + 1]);
+			Link = VF.current_link;
+		}
 		else					ov_pcm_seek(&VF, V.ts_ext + CopySamples);
 	}
 	else if(!ES.encode_file(V.In, (StreamLen - StartSample), V.Buf, OV_BLOCK, V.d, &StopReq))	return StopReq = false;
@@ -374,7 +357,7 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 		LS.setup(&LF, TI->Freq, Quality / 10.0f);
 
 		ogg_stream_init(&LS.stream_out, ++serialno);
-		write_ov_headers(LF, &LS.stream_out, &LS.vi, &TF->vc);
+		vorbis_write_headers(LF, &LS.stream_out, &LS.vi, &TF->vc);
 		LF.flush();
 
 		Ret = LS.encode_file(V.In, Rem, V.Buf, OV_BLOCK, V.d, &StopReq);
@@ -395,13 +378,17 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 		ov_bitstream_seek(&VF, 0, true);
 		Link = -1;
 		V.FadeStart >>= 2;
+
+		BGMLib::UI_Stat_Safe("chain...");
 	}
 		
 	// Can we still copy?
 	for(ushort l = 0; (l < LoopCnt) && (V.FadeStart != 0); l++)
 	{
+		ogg_int64_t Ret;
+
 		ogg_stream_reset_serialno(&ES.stream_out, ++serialno);
-		write_ov_headers(V.Out, &ES.stream_out, VF.vi, &TF->vc);
+		vorbis_write_headers(V.Out, &ES.stream_out, VF.vi, &TF->vc);
 
 		StreamLen = ov_pcm_total(&VF, Link);
 		if(StreamLen >= V.FadeStart)
@@ -411,13 +398,13 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 		}
 		else	V.FadeStart -= StreamLen;
 
-		ogg_packetcopy(V.Out, &ES.stream_out, &VF, CopySamples);
+		Ret = ogg_packetcopy(V.Out, &ES.stream_out, &VF, CopySamples);
 		if(StopReq)	return StopReq = false;
 
-		// Change
 		if(GI->Vorbis)
 		{
-			if(CopySamples == -1)	ov_bitstream_seek(&VF, V.tl, true);
+			V.d += Ret * 4;
+			if(CopySamples == -1)	ov_raw_seek(&VF, VF.offsets[VF.current_link]);
 			else					ov_pcm_seek(&VF, V.tl + CopySamples);
 		}
 		else
@@ -454,7 +441,7 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 		{
 			ogg_stream_clear(&ES.stream_out);
 			ogg_stream_init(&ES.stream_out, ++serialno);
-			write_ov_headers(V.Out, &ES.stream_out, &ES.vi, &TF->vc);
+			vorbis_write_headers(V.Out, &ES.stream_out, &ES.vi, &TF->vc);
 		}
 
 		V.Out.flush();
@@ -464,8 +451,7 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 		//		vorbis_encode_setup_init(&vi));
 
 		if(StopReq)	return StopReq = false;
-		if(GI->Vorbis)	MW->ProgConnect(&V.d, V.FadeBytes);
-
+		
 		long Rem = V.FadeBytes;
 		while((Rem > 0) && !StopReq)
 		{
