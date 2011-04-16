@@ -61,7 +61,7 @@ FXString OutPath;	// Output directory
 
 // String Constants
       FXString PrgName = "Music Room Interface";
-const FXString PrgVer = "v2.0.1";
+const FXString PrgVer = "v2.1";
 const FXString NoGame = "(no game loaded)";
       FXString CfgFile = "musicroom.cfg";
 	  FXString LGDFile = "gamedirs.cfg";

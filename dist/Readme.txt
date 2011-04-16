@@ -49,7 +49,7 @@ As for the source code, well, do with it whatever you like. It's the internet af
 
 Oh yeah, and this program was not made by anybody at shrinemaiden.org.
 And especially not by that Drake guy.
-If you downloaded it from there, shout at them.
+If you downloaded a rehosted version from there, shout at them.
 ---------------
 
 3. Usage
@@ -82,11 +82,12 @@ Then start the program and load the game again.
 --------------------
 
 The tagging engine always writes tags in both Japanese and English.
-Here, metadata for the selected language is written to the widely and commonly used tag fields
+Metadata for the selected language is written to the widely and commonly used tag fields
 of the format, while metadata for the other language is written to a "custom" tag field,
 prefixed with either [EN] or [JP]. Thus, this "additional" data may not be displayed by many players.
 
 The following table shows an overview about the written tag fields for every format.
+The other, not selected language is indicated as !LANG.
 
 (Vorbis comments are used in Ogg and FLAC formats, and ID3v2 is used in MP3.
 ID3v1 tags are never written. They don't make much sense when working with non-ASCII strings.)
@@ -150,7 +151,7 @@ If you want to compile the program yourself, you'll need the following additiona
 - cURL (http://curl.haxx.se/)
   Internet access. Accessed from bgmlib.
 
-Caution: Due to parts of FOX not being thread-safe, bgmlib _always has_ to be linked as static!
+Caution: Due to parts of FOX apparently not being thread-safe, bgmlib _always has_ to be linked as static!
 
 Since this was only a side project to my other programming projects,
 there wasn't much thought and even less planning involved in writing this...
@@ -164,6 +165,15 @@ Since I don't have those hacking skills, I couldn't support these games without 
 
 7. Version History
 ------------------
+
+- 2011/04/15 (Version 2.1)
+* Now supporting the Touhou 13 (「東方神霊廟　～ Ten Desires」) trial version
+* Added exclusive support for all games compressed by the Touhou Vorbis Compressor (http://bit.ly/touhou_vorbis).
+* Added tagging support for 「Oriental Sacred Place vol.2」
+* Silence scanning can now be disabled per game by adding <silencescan = false> to the [game] section of a BGM info file
+* Added custom per-track frequency (required for TH13)
+
+----
 
 - 2011/03/28 (Version 2.0.1)
 * Title bar now shows the active game's name and our Akyu icon

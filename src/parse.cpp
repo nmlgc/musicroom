@@ -30,6 +30,7 @@ bool GameInfo::ParseTrackDataEx(ConfigFile& NewGame)
 	bool Save = false;
 
 	NewGame.LinkValue("game", "notice", TYPE_STRING, &Notice);
+	NewGame.GetValue("game", "silencescan", TYPE_BOOL, &SilenceScan);
 
 	if(WikiUpdate)
 	{

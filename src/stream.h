@@ -26,7 +26,8 @@ protected:
 	// --------------------------
 	TrackInfo* Track;
 	TrackInfo* New;	// Track switch queue
-	FXFile	BGMFile;
+	FXFile	CurFile;
+	FXuint CurFNHash;
 	ulong	Pos;
 	// --------------------------
 
@@ -46,8 +47,8 @@ protected:
 	void StreamFrame_OGG(char* Buffer, const ulong& Size);
 	bool StreamFrame(const ulong& Offset, const ulong& Size); // Streaming Loop Function
 	
-	bool SwitchTrack_WAV(TrackInfo* NewTrack);
-	bool SwitchTrack_OGG(TrackInfo* NewTrack);
+	bool SwitchTrack_WAV(TrackInfo* NewTrack, FXString& NewFN);
+	bool SwitchTrack_OGG(TrackInfo* NewTrack, FXString& NewFN);
 	bool SwitchTrack();
 
 public:

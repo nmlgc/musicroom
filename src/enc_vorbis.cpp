@@ -227,19 +227,25 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 	{
 		// Check source file
 		// ----------------
+		GI->OpenBGMFile(V.In, TI);
 		if(GI->Vorbis)
 		{
 			if(!GI->CryptKind)
 			{
+				ulong Start;
+
 				// Directly decode from the original BGM file
-				if(!OpenVorbisBGM(V.In, VF, GI, TI))	return false;
+				if(ov_open_callbacks(&V.In, &VF, NULL, 0, OV_CALLBACKS_FXFILE))	return false;
 				if(VF.links == 1)	CSA = false;
+
+				// This is necessary because seeking to 0 apparently breaks the codebooks
+				Start = TI->GetStart(FMT_SAMPLE, CSA ? 0 : SilRem);
+				if(!(CSA && !Start) )	ov_pcm_seek(&VF, Start);
 			}
 			else	CSA = false;
 		}
 		else
 		{
-			GI->OpenBGMFile(V.In, TI);
 			V.In.position(TI->GetStart(FMT_BYTE, SilRem));
 		}
 	}
@@ -303,7 +309,7 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 	if(GI->Vorbis)
 	{
 		Link = ov_bitstream_seek(&VF, V.ts_data, true);
-		vorbis_write_headers(V.Out, &ES.stream_out, VF.vi, &TF->vc);
+		vorbis_write_headers(V.Out, &ES.stream_out, &ES.vi, &TF->vc);
 
 		StreamLen = ov_pcm_total(&VF, Link);
 
@@ -388,7 +394,7 @@ bool Encoder_Vorbis::Extract(TrackInfo* TI, FXString& EncFN, GameInfo* GI, Extra
 		ogg_int64_t Ret;
 
 		ogg_stream_reset_serialno(&ES.stream_out, ++serialno);
-		vorbis_write_headers(V.Out, &ES.stream_out, VF.vi, &TF->vc);
+		vorbis_write_headers(V.Out, &ES.stream_out, &ES.vi, &TF->vc);
 
 		StreamLen = ov_pcm_total(&VF, Link);
 		if(StreamLen >= V.FadeStart)

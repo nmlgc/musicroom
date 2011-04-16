@@ -26,73 +26,7 @@
 // -----------
 
 #include <bgmlib/pm_zun.h>
-
-class PM_Tasofro : public PackMethod
-{
-private:
-	ulong HeaderSizeV2(FX::FXFile& In);
-
-	bool IsValidHeader(char* hdr, const FXuint& hdrSize, const FXushort& Files);
-
-	void DecryptHeaderV1(char* hdr, const FXuint& hdrSize);
-	void DecryptHeaderV2(char* hdr, const FXuint& hdrSize, const FXushort& Files);
-
-protected:
-	virtual void GetPosData(GameInfo* GI, FX::FXFile& In, FXushort& Files, char* hdr, FXuint& hdrSize) = 0;
-
-	ulong HeaderSize(GameInfo* GI, FX::FXFile& In, const FXushort& Files);
-	bool DecryptHeader(GameInfo* GI, char* hdr, const FXuint& hdrSize, const FXushort& Files);
-
-	bool CheckCryptKind(ConfigFile& NewGame, const uchar& CRKind);	// Checks if given encryption kind is valid
-
-public:
-	bool TrackData(GameInfo* GI);
-};
-
-// PM_BMWav
-// --------
-class PM_BMWav : public PM_Tasofro
-{
-protected:
-	PM_BMWav()	{ID = BMWAV;}
-
-	void GetPosData(GameInfo* GI, FX::FXFile& In, FXushort& Files, char* hdr, FXuint& hdrSize);
-
-public:
-	bool CheckBMTracks(GameInfo* Target);
-
-	bool ParseGameInfo(ConfigFile& NewGame, GameInfo* GI);
-	bool ParseTrackInfo(ConfigFile& NewGame, GameInfo* GI, ConfigParser* TS, TrackInfo* NewTrack);		// return true if position data should be read from config file
-	GameInfo* Scan(const FXString& Path);	// Scans [Path] for a game packed with this method
-
-	SINGLETON(PM_BMWav);
-};
-// --------
-
-// PM_BMOgg
-// --------
-
-class PM_BMOgg : public PM_Tasofro
-{
-protected:
-	PM_BMOgg()	{ID = BMOGG;}
-
-	void MetaData(GameInfo* GI, FXFile& In, const ulong& Pos, const ulong& Size, TrackInfo* TI);	// SFL Format
-	void GetPosData(GameInfo* GI, FX::FXFile& In, FXushort& Files, char* hdr, FXuint& hdrSize);
-
-public:
-	bool ParseGameInfo(ConfigFile& NewGame, GameInfo* GI);
-	bool ParseTrackInfo(ConfigFile& NewGame, GameInfo* GI, ConfigParser* TS, TrackInfo* NewTrack);		// return true if position data should be read from config file
-
-	inline ulong DecryptBuffer(const uchar& CryptKind, char* Out, const ulong& Pos, const ulong& Size);	// Contains the decryption algorithm
-
-	ulong DecryptFile(GameInfo* GI, FXFile& In, char* Out, const ulong& Pos, const ulong& Size, volatile FXulong* p = NULL);
-
-	GameInfo* Scan(const FXString& Path);	// Scans [Path] for a game packed with this method
-
-	SINGLETON(PM_BMOgg);
-};
-// --------
+#include <bgmlib/pm_tasofro.h>
 
 // PM_PBG6
 // -------

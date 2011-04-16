@@ -117,7 +117,7 @@ ulong Decrypter::Start(GameInfo* _GI, TrackInfo* _TI, VFile* _VF)
 {
 	if(running())	return 0;
 
-	Src = _GI->TrackFN(TI);
+	Src = _GI->DiskFN(TI);
 	GI = _GI;
 	TI = _TI;
 	VF = _VF;
@@ -436,7 +436,7 @@ int Extractor::run()
 	CurTrack = ActiveGame->Track.Get(Cur);
 	do
 	{
-		if(!CurTrack->Data.GetStart())	continue;
+		if(!CurTrack->Data.Start[0] && !ActiveGame->BGMFile.empty())	continue;
 
 		V.DisplayFN = PatternFN(&CurTrack->Data);
 		OutFN = OutPath + V.DisplayFN;

@@ -19,7 +19,7 @@ bool PM_PBG6::ParseGameInfo(ConfigFile &NewGame, GameInfo *GI)
 
 bool PM_PBG6::ParseTrackInfo(ConfigFile &NewGame, GameInfo *GI, ConfigParser* TS, TrackInfo *NewTrack)
 {
-	TS->GetValue("filename", TYPE_STRING, &NewTrack->FN);
+	TS->GetValue("filename", TYPE_STRING, &NewTrack->NativeFN);
 	NewTrack->PosFmt = FMT_SAMPLE;
 	GI->Vorbis = true;
 

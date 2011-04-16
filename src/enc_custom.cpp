@@ -30,7 +30,6 @@
 #ifdef WIN32
 #include <wchar.h>
 #include <windows.h>
-#undef DecryptFile
 static PROCESS_INFORMATION ProcInf;
 #endif
 

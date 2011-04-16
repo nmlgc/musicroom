@@ -8,6 +8,11 @@ NOTE: This file only lists changes to the user interface program.
       Refer to the bgmlib changelog for changes to supported games and the back-end engine.
 
 
+- 2011/04/15 (Version 2.1)
+* Added exclusive support for games compressed by the Touhou Vorbis Compressor (http://bit.ly/touhou_vorbis).
+
+----
+
 - 2011/03/28 (Version 2.0.1)
 * Title bar now shows the active game's name and our Akyu icon
 * Fixed a crash on game loading

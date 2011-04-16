@@ -218,19 +218,11 @@
 				>
 			</File>
 			<File
-				RelativePath="extract.h"
+				RelativePath=".\extract.h"
 				>
 			</File>
 			<File
-				RelativePath=".\libvorbis.h"
-				>
-			</File>
-			<File
-				RelativePath="mainwnd.h"
-				>
-			</File>
-			<File
-				RelativePath=".\mt.hpp"
+				RelativePath=".\mainwnd.h"
 				>
 			</File>
 			<File
@@ -238,7 +230,7 @@
 				>
 			</File>
 			<File
-				RelativePath="parse.h"
+				RelativePath=".\parse.h"
 				>
 			</File>
 			<File
@@ -246,7 +238,11 @@
 				>
 			</File>
 			<File
-				RelativePath="stream.h"
+				RelativePath=".\scan.h"
+				>
+			</File>
+			<File
+				RelativePath=".\stream.h"
 				>
 			</File>
 			<File
@@ -307,10 +303,6 @@
 			</File>
 			<File
 				RelativePath=".\pm_pbg6.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\pm_tasofro.cpp"
 				>
 			</File>
 			<File

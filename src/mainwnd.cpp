@@ -16,6 +16,7 @@
 #include "encode.h"
 #include "extract.h"
 #include "tagger.h"
+#include "scan.h"
 
 extern MainWnd* MWBack;
 MainWndFront* MW;
@@ -423,6 +424,7 @@ void MainWnd::LoadGame(FXString& Path)
 
 	ActiveGame = BGMLib::ScanGame(Path);
 	if(!ActiveGame || !ActiveGame->Init(Path))	ActiveGame = NULL;
+	else										PerformScans(ActiveGame);
 	LoadGame(ActiveGame);
 }
 
@@ -482,8 +484,8 @@ void MainWnd::LoadGame(GameInfo* GI)
 
 		handle(this, FXSEL(SEL_COMMAND, MW_CHANGE_ACTION_STATE), (void*)Act);
 
-		if(GI->CryptKind && GI->Vorbis)	RemoveSilence->disable();
-		else							RemoveSilence->enable();
+		if((GI->CryptKind && GI->Vorbis) || !GI->SilenceScan)	RemoveSilence->disable();
+		else	RemoveSilence->enable();
 
 		Str.RequestTrackSwitch(CurTrack);
 		if(Play)	Str.Play();
@@ -537,6 +539,7 @@ long MainWnd::onSwitchGame(FXObject* Sender, FXSelector Message, void* ptr)
 				(Verify->Name[0] == New->Name[0]))
 			{
 				New->Init(New->Path);
+				PerformScans(New);
 			}
 			else
 			{

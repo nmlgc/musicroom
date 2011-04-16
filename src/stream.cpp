@@ -8,6 +8,7 @@
 #include <FXFile.h>
 #include <bgmlib/libvorbis.h>
 #include "stream.h"
+#include <bgmlib/packmethod.h>
 #include <bgmlib/ui.h>
 
 #ifdef WIN32
@@ -77,7 +78,7 @@ FXint Streamer::run()
 			if(!ActiveGame->Scanned)	New = NULL;
 			SwitchTrack();
 		}
-		else if(Track && BGMFile.isOpen())
+		else if(Track && CurFile.isOpen())
 		{
 			SetVolume();
 
@@ -110,7 +111,7 @@ FXint Streamer::run()
 
 void Streamer::StreamFrame_WAV(char* Buffer, const ulong& Size)
 {
-	Pos = pcm_read_bgm(BGMFile, Buffer, Size, Track);
+	Pos = pcm_read_bgm(CurFile, Buffer, Size, Track);
 }
 
 void Streamer::StreamFrame_OGG(char* Buffer, const ulong& Size)
@@ -138,42 +139,48 @@ bool Streamer::StreamFrame(const ulong& Offset, const ulong& Size)
 	return true;
 }
 
-bool Streamer::SwitchTrack_WAV(TrackInfo* NewTrack)
+bool Streamer::SwitchTrack_WAV(TrackInfo* NewTrack, FXString& NewFN)
 {
-	if(!Track || !BGMFile.isOpen() || (Track->FN != NewTrack->FN) )
+	FXuint NewFNHash = NewFN.hash();
+	if(!Track || !CurFile.isOpen() || (CurFNHash != NewFNHash) )
 	{
 		CloseFile();
 
-		if(!ActiveGame->OpenBGMFile(BGMFile, NewTrack))	return false;
+		if(!ActiveGame->OpenBGMFile(CurFile, NewTrack))	return false;
 	}
 	Pos = NewTrack->GetStart(FMT_BYTE, SilRem);
-	BGMFile.position(Pos);
+	CurFile.position(Pos);
 
-	SB->SetFrequency(DSBFREQUENCY_ORIGINAL);
+	SB->SetFrequency(NewTrack->Freq);
+	CurFNHash = NewFNHash;
 
 	return true;
 }
 
-bool Streamer::SwitchTrack_OGG(TrackInfo* NewTrack)
+bool Streamer::SwitchTrack_OGG(TrackInfo* NewTrack, FXString& NewFN)
 {
-	if(Track && Track->FN == NewTrack->FN)
-	{
-		return ov_pcm_seek(&SF, NewTrack->GetStart(FMT_SAMPLE, SilRem)) == 0;
-	}
-	else if(ActiveGame->CryptKind)
+	FXuint NewFNHash = NewFN.hash();
+	if(ActiveGame->CryptKind)
 	{
 		// Decrypt temporary play file from archive and load it
 		CloseFile();
 
 		if(!DumpDecrypt(ActiveGame, NewTrack, OggPlayFile))	return false;
-		BGMFile.open(OggPlayFile, FXIO::Reading);
-		ov_open_callbacks(&BGMFile, &SF, NULL, 0, OV_CALLBACKS_FXFILE);
+		CurFile.open(OggPlayFile, FXIO::Reading);
+		ov_open_callbacks(&CurFile, &SF, NULL, 0, OV_CALLBACKS_FXFILE);
+	}
+	else if(Track && CurFNHash == NewFNHash)
+	{
+		ov_pcm_seek(&SF, NewTrack->GetStart(FMT_SAMPLE, SilRem));
 	}
 	else
 	{
-		if(!OpenVorbisBGM(BGMFile, SF, ActiveGame, NewTrack))	return false;
+		CloseFile();
+
+		if(!OpenVorbisBGM(CurFile, SF, ActiveGame, NewTrack))	return false;
 	}
-	SB->SetFrequency(SF.vi->rate);
+	SB->SetFrequency(NewTrack->Freq);
+	CurFNHash = NewFNHash;
 	
 	return true;
 }
@@ -184,7 +191,7 @@ bool Streamer::SwitchTrack()
 	bool Ret;
 
 	TrackInfo* Load = New;
-	SB->Stop();
+	// SB->Stop();
 	ClearBuffer();
 		
 	if(!New)
@@ -197,8 +204,10 @@ bool Streamer::SwitchTrack()
 	{
 		if(Load != New)	Load = New;
 
-		if(ActiveGame->Vorbis)	Ret = SwitchTrack_OGG(Load);
-		else					Ret = SwitchTrack_WAV(Load);
+		FXString NewFN = ActiveGame->DiskFN(Load);
+
+		if(ActiveGame->Vorbis)	Ret = SwitchTrack_OGG(Load, NewFN);
+		else					Ret = SwitchTrack_WAV(Load, NewFN);
 	}
 	while(Load != New);	// ... yeah, maybe someone scrolls through very fast and already changed [New] to a different track than the one we loaded
 
@@ -276,10 +285,10 @@ void Streamer::ClearBuffer()
 
 void Streamer::CloseFile()
 {
-	if(BGMFile.isOpen())
+	if(CurFile.isOpen())
 	{
 		ov_clear(&SF);
-		BGMFile.close();
+		CurFile.close();
 		Track = NULL;
 	}
 	FXFile::remove(OggPlayFile);

@@ -153,7 +153,7 @@ inline FXString TemplateElm_Comment(const FXString& WD, const FXString& Tag)
 {
 	FXString Ret(NamedValue(WD, Tag, "=", "|"));
 	TranslateIndents(Ret);
-	return Ret;
+	return Ret.trimEnd();
 }
 
 FXuint AskForUpdate(TrackInfo* TI, const FXString& Type, FXString* Old, FXString* New, FXuint* Ret, bool ShowStat = true)
@@ -450,6 +450,9 @@ DL:
 	// HTML
 	Page.substitute("&gt;", ">");
 	Page.substitute("&lt;", "<");
+
+	// Too less time for a proper fix right now
+	Page.substitute("<br />", "\n");
 
 	// Magical Astronomy...
 	{
