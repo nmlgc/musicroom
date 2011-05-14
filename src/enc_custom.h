@@ -4,6 +4,9 @@
 // --------------------
 // "©" Nmlgc, 2011
 
+#ifndef MUSICROOM_ENC_CUSTOM_H
+#define MUSICROOM_ENC_CUSTOM_H
+
 // Forward declarations
 namespace FX
 {
@@ -41,3 +44,5 @@ public:
 
 	~Encoder_Custom();
 };
+
+#endif /* MUSICROOM_ENC_CUSTOM_H */

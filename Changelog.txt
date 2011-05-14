@@ -8,6 +8,12 @@ NOTE: This file only lists changes to the user interface program.
       Refer to the bgmlib changelog for changes to supported games and the back-end engine.
 
 
+- 2011/05/14 (Version 2.2)
+* Added an appropriate warning for custom encoders when dealing with lossy music
+* Colored the active status line blue
+
+----
+
 - 2011/04/15 (Version 2.1)
 * Added exclusive support for games compressed by the Touhou Vorbis Compressor (http://bit.ly/touhou_vorbis).
 

@@ -1,8 +1,11 @@
 // Music Room Interface
 // --------------------
-// pm.h - Pack Method subclasses
+// pm.h - Additional Pack Method subclasses
 // --------------------
 // "©" Nmlgc, 2010-2011
+
+#ifndef MUSICROOM_PM_H
+#define MUSICROOM_PM_H
 
 // Pack Methods
 #define PM_NONE 0x0	// No BGM extraction support, only for tagging
@@ -56,3 +59,5 @@ public:
 	SINGLETON(PM_PBG6);
 };
 // -------
+
+#endif /* MUSICROOM_PM_H */

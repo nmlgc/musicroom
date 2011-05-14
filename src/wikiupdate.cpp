@@ -164,8 +164,8 @@ FXuint AskForUpdate(TrackInfo* TI, const FXString& Type, FXString* Old, FXString
 	FXString o = *Old, n = *New;
 	o.simplify();
 	n.simplify();
-	remove_sub(o, ' ');
-	remove_sub(n, ' ');
+	removeSub(o, ' ');
+	removeSub(n, ' ');
 	if(o == n)	return *Ret;
 
 	FXString Msg;
@@ -207,14 +207,14 @@ static TrackInfo* Eval_MusicRoom(GameInfo* GI, FXString& WD, FXuint* MsgRet)
 	TrackInfo* Cur = NULL;
 	ushort s = 1, l;
 
-	remove_sub(WD, Tmpl[1]);
+	removeSub(WD, Tmpl[1]);
 
 	Category = TemplateElm(WD, Wiki_Category);
 	TrackNo = Category.after('#').toUInt();
 
 	for(l = 0; l < LANG_COUNT; l++)
 	{
-		Name[l] = TemplateElm(WD, Wiki_Name[l]);	remove_sub(Name[l], LineBreak[1]);
+		Name[l] = TemplateElm(WD, Wiki_Name[l]);	removeSub(Name[l], LineBreak[1]);
 		Comment[l] = TemplateElm_Comment(WD, Wiki_Comment[l]);
 	}
 
@@ -418,7 +418,7 @@ DL:
 
 	BGMLib::UI_Stat("\n ...done, evaluating...\n");
 		
-	remove_sub(Page, Face);
+	removeSub(Page, Face);
 	RemoveTemplate(Page, "\\{\\{lang\\|.*?\\|");
 
 	// Remove references

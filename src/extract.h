@@ -4,6 +4,9 @@
 // --------------------
 // "©" Nmlgc, 2010
 
+#ifndef MUSICROOM_EXTRACT_H
+#define MUSICROOM_EXTRACT_H
+
 extern const ushort WAV_HEADER_SIZE;
 
 // Fade algorithms
@@ -126,3 +129,5 @@ public:
 	SINGLETON(Decrypter);
 };
 // -----------------
+
+#endif /* MUSICROOM_EXTRACT_H */

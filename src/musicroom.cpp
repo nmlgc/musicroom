@@ -10,6 +10,7 @@
 #include "mainwnd.h"
 #include <bgmlib/config.h>
 #include <bgmlib/bgmlib.h>
+#include <th_tool_shared/utils.h>
 
 #ifdef PROFILING_LIBS
 LARGE_INTEGER operator - (const LARGE_INTEGER& a, const LARGE_INTEGER& b)	{LARGE_INTEGER r; r.QuadPart = a.QuadPart - b.QuadPart; return r;}
@@ -61,7 +62,8 @@ FXString OutPath;	// Output directory
 
 // String Constants
       FXString PrgName = "Music Room Interface";
-const FXString PrgVer = "v2.1";
+	  FXString WebPage = "http://bit.ly/musicroom_interface";
+const FXString PrgVer = "v2.2";
 const FXString NoGame = "(no game loaded)";
       FXString CfgFile = "musicroom.cfg";
 	  FXString LGDFile = "gamedirs.cfg";
@@ -80,22 +82,10 @@ int main(int argc, char* argv[])
 
 	SetupPM();
 
-	// This will fix the issue that our current directory stays at %HOMEPATH%
-	// if somebody specifies a command line parameter via Explorer
-	FXString FN, Dir = argv[0];
-
 	// Setup directories
 	// -----------------
-	FN = FX::FXPath::name(Dir);
-	Dir.length(Dir.length() - FN.length());
-
-	if(!Dir.empty())
-	{
-		FXSystem::setCurrentDirectory(Dir);
-		AppPath = Dir;
-	}
-	else	AppPath = FXSystem::getCurrentDirectory() + PATHSEP;
-
+	AppPath = CorrectAppPath(argv[0]);
+	
 	OggDumpFile.prepend(FXSystem::getTempDirectory() + SlashString);
 	OggPlayFile.prepend(FXSystem::getTempDirectory() + SlashString);
 	CfgFile.prepend(AppPath);
@@ -129,6 +119,10 @@ int main(int argc, char* argv[])
 
 	FXint Ret = App.run();
 
+	// -------
+	// Cleanup
+	// -------
+
 	LocalGameDir.Save();
 	LocalGameDir.Clear();
 
@@ -155,6 +149,5 @@ int main(int argc, char* argv[])
 	_CrtDumpMemoryLeaks();
 #endif
 #endif
-
 	return Ret;
 }

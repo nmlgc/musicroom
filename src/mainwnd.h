@@ -4,6 +4,9 @@
 // --------------------
 // "©" Nmlgc, 2010-2011
 
+#ifndef MUSICROOM_MAINWD_H
+#define MUSICROOM_MAINWD_H
+
 // Action states
 #define MW_ACT_NONE		0x00
 #define MW_ACT_EXTRACT	0x01
@@ -14,6 +17,7 @@
 class LCListBox;
 class LCTable;
 class LCText;
+class LCDirFrame;
 
 class MainWnd : public FXMainWindow
 {
@@ -31,9 +35,8 @@ protected:
 	TrackInfo* CurTrack;
 
 	// Widgets
-	FXLabel*	GameDirLabel;
-	FXButton*	GameDirSelect;
-
+	LCDirFrame* GameDir;
+	
 	FXCheckButton* TrackPlay;
 	FXSlider* TrackVol;
 	FXDataTarget VolDT;
@@ -41,8 +44,6 @@ protected:
 	LCTable* TrackView;
 	
 	LCText* Comment;
-
-	FXRadioButton*	LangBT[LANG_COUNT];
 
 	FXDataTarget WikiDT;
 	FXCheckButton*	GetWiki;
@@ -55,8 +56,7 @@ protected:
 		FXListBox*	AlgBox;
 	FXCheckButton* RemoveSilence;
 
-	FXTextField* OutDirField;
-	FXButton*	OutDirSelect;
+	LCDirFrame* OutDir;
 
 	FXButton* StartAll;
 	FXButton* StartSel;
@@ -75,8 +75,6 @@ protected:
 
 	void SetComment(TrackInfo* TI);
 
-	FXString DirDialog(const FXString& Title);	// Shows a directory selection dialog and returns the selected directory
-
 public:
 	MainWnd(FXApp* App, FXIcon* AppIcon = NULL);
 
@@ -86,6 +84,7 @@ public:
 
 	bool CFGFail;
 
+	// Messages
 	enum
 	{
 		MW_INIT = FXMainWindow::ID_LAST,
@@ -97,12 +96,11 @@ public:
 		MW_FILLTABLE_BASIC,
 
 		MW_UPDATE_STRINGS,
-		MW_UPDATE_STRINGS_END = MW_UPDATE_STRINGS + 1,
 		MW_UPDATE_LENGTHS,
 
 		MW_FN_PATTERN,
 
-		MW_PARSEDIR,
+		MW_LOAD_BGM_INFO,
 		MW_SELECT_DIR,
 
 		MW_LOAD_GAME,
@@ -128,40 +126,38 @@ public:
 		MW_THREAD_STAT,
 		MW_THREAD_MSG,
 		MW_ACT_FINISH,
-
 		ID_LAST 
 	};
 
 	void create();	// Inits the streamer and reads BGM info files
-	void destroy();
+	FXbool close(FXbool notify = true);
 
-	MESSAGE_FUNCTION(onChangeActionState);	// Changes the state of the extraction and tag buttons. [ptr] takes any valid action state value (see above)
-	MESSAGE_FUNCTION(onStopShow);
-	MESSAGE_FUNCTION(onShowNotice);
-	MESSAGE_FUNCTION(onFillTableBasic);
-	MESSAGE_FUNCTION(onCmdStrings);	// Updates all string labels with the set language
-	MESSAGE_FUNCTION(onUpdStrings);	// Updates all string labels with the set language
-	MESSAGE_FUNCTION(onCmdLengths);	// Calculate track lengths based on loop count and fade duration
-	MESSAGE_FUNCTION(onFNPattern);
-	MESSAGE_FUNCTION(onParseDir);
-	MESSAGE_FUNCTION(onSelectDir);
-	MESSAGE_FUNCTION(onLoadGame);	// Loads the game in the [ptr] directory
-	MESSAGE_FUNCTION(onSwitchGame);
-	MESSAGE_FUNCTION(onChangeTrack);
-	MESSAGE_FUNCTION(onProgRedraw);
-	MESSAGE_FUNCTION(onTogglePlay);
-	MESSAGE_FUNCTION(onPlayStat);	// Displays playing status tooltip
-	MESSAGE_FUNCTION(onStream);
-	MESSAGE_FUNCTION(onUpdEnc);	// Selects a new encoder
-	MESSAGE_FUNCTION(onEncSettings);	// Shows encoding settings dialog
-	MESSAGE_FUNCTION(onSelectOutDir);
-	MESSAGE_FUNCTION(onExtractTrack);
-	MESSAGE_FUNCTION(onExtract);
-	MESSAGE_FUNCTION(onTagUpdate);
-	MESSAGE_FUNCTION(onStop);
-	MESSAGE_FUNCTION(onThreadStat);	// Prints out collected stat messages from other threads
-	MESSAGE_FUNCTION(onThreadMsg);
-	MESSAGE_FUNCTION(onActFinish);
+	MSG_FUNC(onChangeActionState);	// Changes the state of the extraction and tag buttons. [ptr] takes any valid action state value (see above)
+	MSG_FUNC(onStopShow);
+	MSG_FUNC(onShowNotice);
+	MSG_FUNC(onFillTableBasic);
+	MSG_FUNC(onCmdStrings);	// Updates all string labels with the set language
+	MSG_FUNC(onUpdStrings);	// Updates all string labels with the set language
+	MSG_FUNC(onCmdLengths);	// Calculate track lengths based on loop count and fade duration
+	MSG_FUNC(onFNPattern);
+	MSG_FUNC(onLoadBGMInfo);
+	MSG_FUNC(onSelectDir);
+	MSG_FUNC(onLoadGame);	// Loads the game in the [ptr] directory
+	MSG_FUNC(onSwitchGame);
+	MSG_FUNC(onChangeTrack);
+	MSG_FUNC(onProgRedraw);
+	MSG_FUNC(onTogglePlay);
+	MSG_FUNC(onPlayStat);	// Displays playing status tooltip
+	MSG_FUNC(onStream);
+	MSG_FUNC(onUpdEnc);	// Selects a new encoder
+	MSG_FUNC(onEncSettings);	// Shows encoding settings dialog
+	MSG_FUNC(onExtractTrack);
+	MSG_FUNC(onExtract);
+	MSG_FUNC(onTagUpdate);
+	MSG_FUNC(onStop);
+	MSG_FUNC(onThreadStat);	// Prints out collected stat messages from other threads
+	MSG_FUNC(onThreadMsg);
+	MSG_FUNC(onActFinish);
 
 	void LoadGame(FXString& Path);
 	void LoadGame(GameInfo* NewGame);
@@ -171,3 +167,5 @@ public:
 };
 
 extern MainWnd* MWBack;	// Back end GUI class
+
+#endif /* MUSICROOM_MAINWD_H */

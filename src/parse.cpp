@@ -16,12 +16,6 @@
 #include "pm.h"
 #include "parse.h"
 
-// Defining the PM_BGMDat scan method
-GameInfo* PM_BGMDat::Scan(const FXString& Path)
-{
-	return ScanFull(Path);
-}
-
 // Personal appeal and track info wiki updating
 bool GameInfo::ParseTrackDataEx(ConfigFile& NewGame)
 {
@@ -77,7 +71,7 @@ bool GameInfo::ParseTrackDataEx(ConfigFile& NewGame)
 		BGMLib::UI_Stat(Str);
 		if(!NewGame.Save())
 		{
-			Str.format("\n%s!\n", BGMLib::WriteError);
+			Str.format("\n%s file!\n", BGMLib::WriteError);
 			BGMLib::UI_Stat(Str);
 		}
 		BGMLib::UI_Stat("done.\n");
@@ -121,7 +115,7 @@ FXString PatternFN(TrackInfo* Track)
 	FN.substitute('/', '_');
 
 	// People would be very angry if U.N. Owen doesn't appear
-	remove_sub(FN, "?");
+	removeSub(FN, "?");
 	
 	// Append encoder
 	if(EncFmt > 0)
@@ -158,8 +152,8 @@ bool ReadConfig(ConfigFile* Cfg)
 
 	if(!Cfg->Load())	return false;
 
-	Default = Cfg->FindSection("default");
-	Update  = Cfg->FindSection("update");
+	Default = Cfg->CheckSection("default");
+	Update  = Cfg->CheckSection("update");
 
 	Default->LinkValue("play", TYPE_BOOL, &Play);
 	Default->LinkValue("showconsole", TYPE_BOOL, &ShowConsole);
@@ -184,17 +178,16 @@ bool ReadConfig(ConfigFile* Cfg)
 	SetupEnc(Cfg);
 
 	// Custom encoders
-	Sect.format("enc%d", ++Index);
-	CurEnc = Cfg->FindSection(Sect);
-	while(CurEnc)
+	while(1)
 	{
+		Sect.format("enc%d", ++Index);
+		CurEnc = Cfg->FindSection(Sect);
+		if(!CurEnc)	break;
+	
 		New = Encoders.Add();
 
 		New->Data = new Encoder_Custom;
 		New->Data->ReadConfig(CurEnc);
-		
-		Sect.format("enc%d", ++Index);
-		CurEnc = Cfg->FindSection(Sect);
 	}
 	return true;
 }

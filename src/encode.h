@@ -30,9 +30,9 @@ public:
 		ID_LAST
 	};
 
-	MESSAGE_FUNCTION(onAccept);
-	MESSAGE_FUNCTION(onCancel);
-	MESSAGE_FUNCTION(onUpdate);
+	MSG_FUNC(onAccept);
+	MSG_FUNC(onCancel);
+	MSG_FUNC(onUpdate);
 };
 
 #endif /* MUSICROOM_ENCODE_H */

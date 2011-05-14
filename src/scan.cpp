@@ -89,7 +89,7 @@ bool SeekTest::Scan(GameInfo* GI)
 	{
 		TI = &CurTI->Data;
 		
-		if(TI->GetStart() != 0)
+		if(!(TI->GetStart() == 0 && TI->FS != 0))
 		{
 			if(Track(GI, TI))
 			{

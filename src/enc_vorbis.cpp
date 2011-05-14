@@ -12,10 +12,8 @@
 #include <FXHash.h>
 #include <FXStream.h>
 #include <FXDialogBox.h>
-#include <FXHorizontalFrame.h>
 #include <FXVerticalFrame.h>
 #include <FXGroupBox.h>
-#include <FXRealSlider.h>
 #include <FXCheckButton.h>
 #include <FXLabel.h>
 #include <FXThread.h>
@@ -30,6 +28,7 @@
 #include "tag_base.h"
 #include "tag_vorbis.h"
 #include "tagger.h"
+#include <th_tool_shared/LCVorbisQuality.h>
 
 #include <assert.h>
 
@@ -43,18 +42,9 @@ void Encoder_Vorbis::FmtReadConfig(ConfigParser* Sect)
 
 void Encoder_Vorbis::DlgCreate(FXVerticalFrame* Frame, FXDialogBox* Target, const FXuint& Msg)
 {
-	FXGroupBox* QBox;
-		FXHorizontalFrame*	QDesc;
 	FXVerticalFrame* MSFrame;
 
-	QBox = new FXGroupBox(Frame, "Quality", GROUPBOX_NORMAL | FRAME_GROOVE | LAYOUT_FILL_X);
-		Q = new FXRealSlider(QBox, Target, Msg, REALSLIDER_HORIZONTAL | REALSLIDER_ARROW_DOWN | REALSLIDER_TICKS_BOTTOM | LAYOUT_FILL_X);
-	QDesc = new FXHorizontalFrame(QBox, LAYOUT_FILL_X);
-		
-		new FXLabel(QDesc, "Smallest file", NULL, LABEL_NORMAL | LAYOUT_LEFT);
-		new FXLabel(QDesc, "Best quality", NULL, LABEL_NORMAL | LAYOUT_RIGHT);
-
-		EstBR = new FXLabel(QDesc, "", NULL, LABEL_NORMAL | LAYOUT_CENTER_X | LAYOUT_FIX_WIDTH | FRAME_SUNKEN, 0, 0, 100);
+	VQ = new LCVorbisQuality(Frame, Quality);
 
 	MSFrame = new FXVerticalFrame(Frame, LAYOUT_FILL);
 		MS = new FXCheckButton(MSFrame, "Create chained bitstream output files where possible");
@@ -76,30 +66,12 @@ void Encoder_Vorbis::DlgCreate(FXVerticalFrame* Frame, FXDialogBox* Target, cons
 			"ratio on those. This way, additional loops won't add to the archive size!)",
 			NULL, LABEL_NORMAL | JUSTIFY_LEFT);
 
-	// Set values
-	Q->setRange(-1.0, 10.0);
-	Q->setIncrement(0.1);
-	Q->setGranularity(0.1);
-	Q->setTickDelta(11.0);
-	Q->setValue(Quality);
-
 	MS->setCheck(ChainStreamAssemble);
-
-	DlgPoll(Target);
-}
-
-void Encoder_Vorbis::DlgPoll(FXDialogBox* Parent)
-{
-	FXString Str;
-	FXfloat New = Q->getValue();
-	Str.format("~%.0f kbps, q%.1f", vorbis_quality_to_bitrate(New) / 1000.0f, New);
-
-	EstBR->setText(Str);
 }
 
 bool Encoder_Vorbis::DlgApply(FXDialogBox* Parent)
 {
-	Quality = Q->getValue();
+	Quality = VQ->getQuality();
 	ChainStreamAssemble = MS->getCheck() != FALSE;
 	return true;
 }

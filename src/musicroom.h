@@ -2,6 +2,9 @@
 // --------------------
 // "©" Nmlgc, 2010-2011
 
+#ifndef MUSICROOM_MUSICROOM_H
+#define MUSICROOM_MUSICROOM_H
+
 #include <bgmlib/platform.h>
 
 #ifdef _DEBUG
@@ -24,7 +27,7 @@ namespace FX
 	class FXFont;
 }
 
-#define MESSAGE_FUNCTION(x) long x(FXObject*, FXSelector, void*)
+#define MSG_FUNC(x) long x(FXObject*, FXSelector, void*)
 
 class MainWndFront
 {
@@ -112,6 +115,7 @@ extern FXString OutPath;	// Output directory
 
 // String Constants
 extern       FXString PrgName;
+extern       FXString WebPage;
 extern const FXString NoGame;
 extern       FXString CfgFile;
 extern       FXString LGDFile;
@@ -122,3 +126,5 @@ extern       FXString OggDumpFile;
 extern       FXString OggPlayFile;
 extern const FXString Cmp[LANG_COUNT];
 // =======
+
+#endif /* MUSICROOM_MUSICROOM_H */

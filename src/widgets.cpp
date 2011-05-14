@@ -117,13 +117,14 @@ void LCText::setColors()
 	setTextColor(TmpClr);
 	setCursorColor(TmpClr);
 	setBarColor(TmpClr);
+	setActiveBackColor(FXColors::RoyalBlue);
 }
 // -----------------
 
 // Wiki update confirmation
 // ------------------------
-const FXColor LCUpdateMessage::OldClr = FXRGB(255, 0, 0);
-const FXColor LCUpdateMessage::NewClr = FXRGB(0, 255, 0);
+const FXColor LCUpdateMessage::OldClr = FXColors::Red;
+const FXColor LCUpdateMessage::NewClr = FXColors::Green;
 
 // Padding for message box buttons
 #define HORZ_PAD 30

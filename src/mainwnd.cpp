@@ -13,6 +13,9 @@
 #include <bgmlib/packmethod.h>
 #include <bgmlib/bgmlib.h>
 #include <bgmlib/ui.h>
+#include <th_tool_shared/utils.h>
+#include <th_tool_shared/LCDirFrame.h>
+#include <th_tool_shared/LCLangFrame.h>
 #include "encode.h"
 #include "extract.h"
 #include "tagger.h"
@@ -28,13 +31,13 @@ FXDEFMAP(MainWnd) MMMainWnd[] =
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_CHANGE_ACTION_STATE, MainWnd::onChangeActionState),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_STOP_SHOW, MainWnd::onStopShow),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_SHOW_NOTICE, MainWnd::onShowNotice),
-	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_PARSEDIR, MainWnd::onParseDir),
+	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_LOAD_BGM_INFO, MainWnd::onLoadBGMInfo),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_SELECT_DIR, MainWnd::onSelectDir),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_LOAD_GAME, MainWnd::onLoadGame),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_SWITCH_GAME, MainWnd::onSwitchGame),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_FILLTABLE_BASIC, MainWnd::onFillTableBasic),
-	FXMAPFUNCS(SEL_COMMAND, MainWnd::MW_UPDATE_STRINGS, MainWnd::MW_UPDATE_STRINGS_END, MainWnd::onCmdStrings),
-	FXMAPFUNCS(SEL_UPDATE, MainWnd::MW_UPDATE_STRINGS, MainWnd::MW_UPDATE_STRINGS_END, MainWnd::onUpdStrings),
+	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_UPDATE_STRINGS, MainWnd::onCmdStrings),
+	// FXMAPFUNCS(SEL_UPDATE, MainWnd::MW_UPDATE_STRINGS, MainWnd::MW_UPDATE_STRINGS_END, MainWnd::onUpdStrings),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_UPDATE_LENGTHS, MainWnd::onCmdLengths),
 	FXMAPFUNC(SEL_CHANGED, MainWnd::MW_UPDATE_LENGTHS, MainWnd::onCmdLengths),
 	FXMAPFUNC(SEL_CHANGED, MainWnd::MW_CHANGE_TRACK, MainWnd::onChangeTrack),
@@ -44,7 +47,6 @@ FXDEFMAP(MainWnd) MMMainWnd[] =
 	FXMAPFUNC(SEL_CHANGED, MainWnd::MW_FN_PATTERN, MainWnd::onFNPattern),
 	FXMAPFUNCS(SEL_COMMAND, MainWnd::MW_UPDATE_ENC, MainWnd::MW_UPDATE_ENC_END, MainWnd::onUpdEnc),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_ENC_SETTINGS, MainWnd::onEncSettings),
-	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_OUTDIR, MainWnd::onSelectOutDir),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_EXTRACT_ALL, MainWnd::onExtract),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_EXTRACT_SEL, MainWnd::onExtract),
 	FXMAPFUNC(SEL_COMMAND, MainWnd::MW_STOP, MainWnd::onStop),
@@ -62,21 +64,18 @@ MainWnd::MainWnd(FXApp* App, FXIcon* Ico)
 	// Layout managers
 	FXVerticalFrame*	Main;
 	FXGroupBox*	GameBox;
-		FXHorizontalFrame* GameDirFrame;
 		FXHorizontalFrame* LabelFrame;
 	FXSplitter* TrackFrame;
 	FXPacker* TrackEdge;
 	FXPacker* CommentEdge;
-		FXGroupBox*	LangBox;
-		FXHorizontalFrame* LangFrame;
+		LCLangFrame*	LangBox;
 	FXGroupBox* PatternBox;
 	FXHorizontalFrame* OutFrame;
 	FXVerticalFrame* OutRightFrame;
 		FXGroupBox* ParamBox;
 		FXMatrix* ParamFrame;
 		FXHorizontalFrame* FadeFrame;
-	FXHorizontalFrame* OutDirFrame;
-		FXGroupBox* OutDirBox;
+	FXGroupBox* OutDirBox;
 	FXGroupBox* EncBox;
 		FXVerticalFrame* EncFrame;
 	FXVerticalFrame* StartFrame;
@@ -99,14 +98,10 @@ MainWnd::MainWnd(FXApp* App, FXIcon* Ico)
 	WikiDT.connect(WikiUpdate);
 
 	// Language
-	LangBox = new FXGroupBox(Main, "Tag Language", GROUPBOX_NORMAL | FRAME_GROOVE | LAYOUT_FILL_X);
-		LangFrame = new FXHorizontalFrame(LangBox, LAYOUT_FILL);
 
-		for(ushort c = 0; c < LANG_COUNT; c++)
-		{
-			LangBT[c] = new FXRadioButton(LangFrame, BGMLib::LI[c].Display, this, MW_UPDATE_STRINGS + c);
-		}
-		GetWiki = new FXCheckButton(LangFrame, "Get most recent track info from Touhou Wiki", &WikiDT, FXDataTarget::ID_VALUE, CHECKBUTTON_NORMAL | LAYOUT_RIGHT);
+	LangBox = new LCLangFrame(Main, "Tag Language", &::Lang, this, MW_UPDATE_STRINGS, GROUPBOX_NORMAL | FRAME_GROOVE | LAYOUT_FILL_X);
+		
+		GetWiki = new FXCheckButton(LangBox->Frame, "Get most recent track info from Touhou Wiki", &WikiDT, FXDataTarget::ID_VALUE, CHECKBUTTON_NORMAL | LAYOUT_RIGHT);
 		GetWiki->update();
 
 	// Game
@@ -121,9 +116,10 @@ MainWnd::MainWnd(FXApp* App, FXIcon* Ico)
 		GameList->setBackColor(TmpClr);
 		GameList->getPane()->setBorderColor(GameList->getTextColor());
 
-		GameDirFrame = new FXHorizontalFrame(GameBox, LAYOUT_FILL_X);
-		GameDirLabel = new FXLabel(GameDirFrame, "", 0, FRAME_SUNKEN | LABEL_NORMAL | LAYOUT_FILL | LAYOUT_LEFT | JUSTIFY_LEFT | JUSTIFY_BOTTOM, 0, 0, 0, 0, DEFAULT_PAD, DEFAULT_PAD *4, DEFAULT_PAD, DEFAULT_PAD);
-		GameDirSelect = new FXButton(GameDirFrame, "Select Game Directory...", NULL, this, MW_SELECT_DIR, BUTTON_NORMAL | LAYOUT_RIGHT);
+		GameDir = new LCDirFrame(GameBox, "", this, MW_SELECT_DIR, DIRFRAME_READONLY);
+		GameDir->DlgCaption = "Select Game Directory...";
+		GameDir->setButtonText(GameDir->DlgCaption);
+
 
 	// Track Overview
 	LabelFrame = new FXHorizontalFrame(GameBox, LAYOUT_FILL_X, 0, 0, 0, 0, DEFAULT_SPACING, DEFAULT_SPACING, 0, 0, 0, 0);
@@ -164,11 +160,7 @@ MainWnd::MainWnd(FXApp* App, FXIcon* Ico)
 
 	// Output Directory
 	OutDirBox = new FXGroupBox(Main, "Output Directory", GROUPBOX_NORMAL | FRAME_GROOVE | LAYOUT_FILL_X);
-		OutDirFrame = new FXHorizontalFrame(OutDirBox, LAYOUT_FILL_X);
-		OutDirField = new FXTextField(OutDirFrame, 32, NULL, 0, TEXTFIELD_NORMAL | LAYOUT_FILL_X | LAYOUT_LEFT);
-		OutDirField->setText(OutPath);
-
-		new FXButton(OutDirFrame, "...", NULL, this, MW_OUTDIR, BUTTON_NORMAL | LAYOUT_RIGHT | LAYOUT_FILL_X);
+		OutDir = new LCDirFrame(OutDirBox, OutPath);
 
 	OutFrame = new FXHorizontalFrame(Main, LAYOUT_FILL_X);
 
@@ -262,7 +254,7 @@ MainWnd::MainWnd(FXApp* App, FXIcon* Ico)
 	// Status
 	StatBox = new FXGroupBox(Main, "Status", GROUPBOX_NORMAL | FRAME_GROOVE | LAYOUT_BOTTOM | LAYOUT_FILL);
 		StatFrame = new FXVerticalFrame(StatBox, FRAME_SUNKEN | LAYOUT_FILL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-		Stat = new LCText(StatFrame, NULL, 0, TEXT_READONLY | LAYOUT_FILL);
+		Stat = new LCText(StatFrame, NULL, 0, TEXT_READONLY | TEXT_SHOWACTIVE | LAYOUT_FILL);
 
 		Stat->setVisibleRows(8);
 		// Stat->setFont(Monospace);
@@ -276,17 +268,6 @@ MainWnd::MainWnd(FXApp* App, FXIcon* Ico)
 		PlayStat->hide();
 
 	handle(this, FXSEL(SEL_COMMAND, MW_CHANGE_ACTION_STATE), false);
-	handle(this, FXSEL(SEL_COMMAND, MW_INIT), NULL);
-}
-
-FXString MainWnd::DirDialog(const FXString& Title)
-{
-	FXString Ret;
-
-	if(ActiveGame)	Ret = FXPath::upLevel(ActiveGame->Path);
-	Ret = FXDirDialog::getOpenDirectory(this, Title, Ret);
-	
-	return FX::FXPath::simplify(Ret);
 }
 
 void MainWnd::create()
@@ -302,10 +283,9 @@ void MainWnd::create()
 	TrackPlay->handle(this, FXSEL(SEL_COMMAND, Play ? ID_CHECK : ID_UNCHECK), (void*)Play);
 	handle(this, FXSEL(SEL_COMMAND, MW_TOGGLE_PLAY), (void*)Play);
 
-	handle(this, FXSEL(SEL_COMMAND, MW_PARSEDIR), NULL);
+	handle(this, FXSEL(SEL_COMMAND, MW_LOAD_BGM_INFO), NULL);
 
-	PrintStat("The newest version of this program can be downloaded at http://bit.ly/musicroom_interface .\n"
-		      "This program was not made by anyone from shrinemaiden.org.\n\n");
+	PrintStat(WebPageDesc(WebPage));
 	getApp()->endWaitCursor();
 }
 
@@ -383,13 +363,13 @@ static bool LoadIcon(GameInfo* GI, const FXString& Str)
 	return false;
 }
 
-long MainWnd::onParseDir(FXObject* Sender, FXSelector Message, void* ptr)
+long MainWnd::onLoadBGMInfo(FXObject* Sender, FXSelector Message, void* ptr)
 {
 	ListEntry<GameInfo>* CurGame;
 	GameInfo* GI;
 	FXString Str;
 
-	if(!BGMLib::LoadBGMInfo())	GameDirSelect->disable();
+	if(!BGMLib::LoadBGMInfo())	GameDir->Select->disable();
 
 	FXSystem::setCurrentDirectory(BGMLib::InfoPath);
 	
@@ -416,18 +396,6 @@ long MainWnd::onParseDir(FXObject* Sender, FXSelector Message, void* ptr)
 	return 1;
 }
 
-void MainWnd::LoadGame(FXString& Path)
-{
-	StreamerFront& Str = StreamerFront::Inst();
-	if(Play)	Str.Stop();
-	Str.CloseFile();
-
-	ActiveGame = BGMLib::ScanGame(Path);
-	if(!ActiveGame || !ActiveGame->Init(Path))	ActiveGame = NULL;
-	else										PerformScans(ActiveGame);
-	LoadGame(ActiveGame);
-}
-
 void MainWnd::LoadGame(GameInfo* GI)
 {
 	StreamerFront& Str = StreamerFront::Inst();
@@ -446,7 +414,7 @@ void MainWnd::LoadGame(GameInfo* GI)
 	if(!GI)
 	{
 		Comment->setText("");
-		GameDirLabel->setText("");
+		GameDir->Field->setText("");
 		RemoveSilence->enable();
 		handle(this, FXSEL(SEL_COMMAND, MW_CHANGE_ACTION_STATE), false);
 		TrackView->fitColumnsToContents(0, TrackView->getNumColumns());
@@ -458,7 +426,7 @@ void MainWnd::LoadGame(GameInfo* GI)
 
 		if(!GI->Path.empty())
 		{
-			GameDirLabel->setText(GI->Path);
+			GameDir->Field->setText(GI->Path);
 			handle(this, FXSEL(SEL_COMMAND, MW_UPDATE_LENGTHS), NULL);
 
 			LGD->LinkValue(FXPath::stripExtension(GI->InfoFile), TYPE_STRING, &GI->Path, false);
@@ -475,7 +443,7 @@ void MainWnd::LoadGame(GameInfo* GI)
 				FXMessageBox::warning(this, MBOX_OK, PrgName.text(), Warn.text());
 			}
 		}
-		else	GameDirLabel->setText("n/a");
+		else	GameDir->Field->setText("n/a");
 
 		SetComment(CurTrack);
 
@@ -496,10 +464,21 @@ void MainWnd::LoadGame(GameInfo* GI)
 	handle(FNField, FXSEL(SEL_CHANGED, MW_FN_PATTERN), NULL);
 }
 
+void MainWnd::LoadGame(FXString& Path)
+{
+	StreamerFront& Str = StreamerFront::Inst();
+	if(Play)	Str.Stop();
+	Str.CloseFile();
+
+	ActiveGame = BGMLib::ScanGame(Path);
+	if(!ActiveGame || !ActiveGame->Init(Path))	ActiveGame = NULL;
+	else										PerformScans(ActiveGame);
+	LoadGame(ActiveGame);
+}
+
 long MainWnd::onSelectDir(FXObject* Sender, FXSelector Message, void* ptr)
 {
-	FXString NewGameDir = DirDialog("Select Game Directory...");
-	if(NewGameDir.empty())	return 1;
+	FXString& NewGameDir = *((FXString*)ptr);
 	if(ActiveGame && (NewGameDir == ActiveGame->Path))	return 1;
 
 	StreamerFront& Str = StreamerFront::Inst();
@@ -610,7 +589,7 @@ long MainWnd::onFillTableBasic(FXObject* Sender, FXSelector Message, void* ptr)
 		CurTrack = CurTrack->Next();
 	}
 
-	handle(this, FXSEL(SEL_COMMAND, MW_UPDATE_STRINGS + Lang), NULL);
+	handle(this, FXSEL(SEL_COMMAND, MW_UPDATE_STRINGS), (void*)Lang);
 
 	return 1;
 }
@@ -618,30 +597,18 @@ long MainWnd::onFillTableBasic(FXObject* Sender, FXSelector Message, void* ptr)
 long MainWnd::onCmdStrings(FXObject* Sender, FXSelector Message, void* ptr)
 {
 	ListEntry<GameInfo>* CurGame = BGMLib::Game.First();
-	FXint beg, end, start, l = 1;
-	FXString Search, Replace;
+	FXint l = 1;
 	GameInfo* GI;
 
-	Lang = (FXSELID(Message) - MW_UPDATE_STRINGS) != 0;
+	ushort NewLang = (ushort)ptr;
 
-	for(ushort l = 0; l < LANG_COUNT; l++)	LangBT[l]->update();
+	TranslateGameNames(Stat, NewLang);
 
-	// Update status box and list box game names
+	// Update list box game names
 	while(CurGame)
 	{
 		GI = &CurGame->Data;
-
-		Search = GI->DelimName(!Lang);
-		Replace = GI->DelimName(Lang);
-
-		start = 0;
-		while(Stat->findText(Search, &beg, &end, start, SEARCH_FORWARD | SEARCH_EXACT))
-		{
-			Stat->replaceText(beg, end - beg, Replace);
-			start = beg + Replace.length();
-		}
-		GameList->setItemText(l++, GI->NumName(Lang));
-
+		GameList->setItemText(l++, GI->NumName(NewLang));
 		CurGame = CurGame->Next();
 	}
 
@@ -658,7 +625,7 @@ long MainWnd::onCmdStrings(FXObject* Sender, FXSelector Message, void* ptr)
 
 		if(!(Track->GetStart() == 0 && Track->FS != 0) )
 		{
-			TrackView->setItemText(Row, 1, Track->Name[Lang]);
+			TrackView->setItemText(Row, 1, Track->Name[NewLang]);
 			Row++;
 		}
 		CurTI = CurTI->Next();
@@ -669,15 +636,8 @@ long MainWnd::onCmdStrings(FXObject* Sender, FXSelector Message, void* ptr)
 
 	handle(FNField, FXSEL(SEL_CHANGED, MW_FN_PATTERN), NULL);
 
-	setTitle(PrgName + " - " + ActiveGame->Name[Lang]);
+	setTitle(PrgName + " - " + ActiveGame->Name[NewLang]);
 
-	return 1;
-}
-
-long MainWnd::onUpdStrings(FXObject* Sender, FXSelector Message, void* ptr)
-{
-	ushort Send = (FXSELID(Message) - MW_UPDATE_STRINGS);
-	Sender->handle(this, Send == Lang ? FXSEL(SEL_COMMAND, FXWindow::ID_CHECK) : FXSEL(SEL_COMMAND,ID_UNCHECK), NULL);
 	return 1;
 }
 
@@ -840,18 +800,12 @@ long MainWnd::onEncSettings(FXObject* Sender, FXSelector Message, void* ptr)
 	return 1;
 }
 
-long MainWnd::onSelectOutDir(FXObject* Sender, FXSelector Message, void* ptr)
-{
-	OutPath = DirDialog("Select Output Directory...");
-	if(!OutPath.empty())	OutDirField->setText(OutPath);
-	return 1;
-}
-
 bool MainWnd::CheckOutDir()
 {
-	bool Empty = OutDirField->getText().empty();
+	FXString Dir = OutDir->getDir();
+	bool Empty = Dir.empty();
 	if(Empty)	FXMessageBox::error(MWBack->getApp()->getActiveWindow(), MBOX_OK, PrgName.text(), "Please specify an output directory.");
-	else		OutPath = FX::FXPath::simplify(OutDirField->getText() + PATHSEP);
+	else		OutPath = Dir;
 	return !Empty;
 }
 
@@ -885,7 +839,7 @@ long MainWnd::onExtract(FXObject* Sender, FXSelector Message, void* ptr)
 	FX::FXSystem::setCurrentDirectory(AppPath);
 	// -----------------
 
-	GameDirSelect->disable();
+	GameDir->disable();
 	handle(this, FXSEL(SEL_COMMAND, MW_STOP_SHOW), (void*)true);
 
 	if(Sel)
@@ -931,7 +885,7 @@ long MainWnd::onTagUpdate(FXObject* Sender, FXSelector Message, void* ptr)
 
 	if(Ret == MBOX_CLICKED_NO)	return 1;
 
-	GameDirSelect->disable();
+	GameDir->disable();
 	handle(this, FXSEL(SEL_COMMAND, MW_STOP_SHOW), (void*)true);
 
 	Tagger::Inst().start();
@@ -973,26 +927,26 @@ long MainWnd::onProgRedraw(FXObject* Sender, FXSelector Message, void* ptr)
 	return 1;
 }
 
-void MainWnd::destroy()
+FXbool MainWnd::close(FXbool notify)
 {
-	SAFE_DELETE_ARRAY(EncBtn);
-	if(!OutDirField->getText().empty())	OutPath = FX::FXPath::simplify(OutDirField->getText() + PATHSEP);
+	FXString Str;
+
+	Str = OutDir->getDir();
+	if(!Str.empty())	OutPath = Str;
 
 	onStop(this, FXSEL(SEL_COMMAND, MW_STOP), NULL);
-
 	StreamerFront::Inst().Exit();
 
+	SAFE_DELETE_ARRAY(EncBtn);
 	SAFE_DELETE(Monospace);
+
+	FXMainWindow::close(notify);
+	return true;
 }
 
 void MainWnd::PrintStat(const FXString& NewStat)
 {
-	Stat->appendText(NewStat, true);
-	Stat->makePositionVisible(Stat->rowStart(Stat->getLength()));
-	Stat->update();
-	Stat->recalc();
-
-	getApp()->repaint();
+	::PrintStat(getApp(), Stat, NewStat);
 }
 
 void MainWnd::ProgConnect(volatile FXulong* Var, FXuint Max)
@@ -1066,7 +1020,7 @@ long MainWnd::onThreadStat(FXObject* Sender, FXSelector Message, void* ptr)
 long MainWnd::onActFinish(FXObject* Sender, FXSelector Message, void* ptr)
 {
 	handle(this, FXSEL(SEL_COMMAND, MW_STOP_SHOW), false);
-	GameDirSelect->enable();
+	GameDir->enable();
 	FXSystem::setCurrentDirectory(AppPath);
 
 	return 1;

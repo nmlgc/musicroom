@@ -4,6 +4,9 @@
 // --------------------
 // "©" Nmlgc, 2010-2011
 
+#ifndef MUSICROOM_STREAM_H
+#define MUSICROOM_STREAM_H
+
 #ifdef WIN32
 #include <dsound.h>
 
@@ -76,4 +79,6 @@ public:
 		return Instance;
 	}
 };
-#endif
+
+#endif /* WIN32 */
+#endif /* MUSICROOM_STREAM_H */

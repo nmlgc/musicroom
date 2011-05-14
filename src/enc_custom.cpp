@@ -198,6 +198,13 @@ FXString Encoder_Custom::Init(GameInfo* GI)
 {
 	FXString Ret;
 	Ret.format("Command line: %s %s\n", CmdLine[0], CmdLine[1]);
+	if(GI->Vorbis)
+	{
+		Ret.append("WARNING: Performing lossy-to-");
+		if(this->Lossless)	Ret.append("lossless ");
+		else				Ret.append("lossy ");
+		Ret.append("encoding\n");
+	}
 	return Ret;
 }
 

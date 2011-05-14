@@ -52,6 +52,9 @@ repository](libs/bgmlib/).
   project, place them into a single directory, and specify that directory at
   *Linker → General → Additional Library Directories*.
 
+* "fox_nopng" doesn't imply any other necessary changes; just use the normal
+  FOX .lib file.
+
 * Place the compiled binary into the `dist/` directory, since it absolutely
   needs `musicroom.cfg` to run.
   Also, copy bgmlib's `bgminfo/` subdirectory there.

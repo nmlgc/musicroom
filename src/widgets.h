@@ -4,6 +4,9 @@
 // --------------------
 // "©" Nmlgc, 2011
 
+#ifndef MUSICROOM_WIDGETS_H
+#define MUSICROOM_WIDGETS_H
+
 // Default "OK", "Cancel" and "Apply" buttons in dialogs
 // -------
 class LCButtonFrame : public FXHorizontalFrame
@@ -100,3 +103,5 @@ public:
 	static FXuint question(FXApp* app, FXuint opts, const FXString& caption, const FXString& TopMsg, const FXString& OldMsg, const FXString& NewMsg);
 };
 // ------------------------
+
+#endif /* MUSICROOM_WIDGETS_H */

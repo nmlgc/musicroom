@@ -4,6 +4,9 @@
 // --------------------
 // "©" Nmlgc, 2010-2011
 
+#ifndef MUSICROOM_PARSE_H
+#define MUSICROOM_PARSE_H
+
 // Performs Wiki update for [GI]. Will ask for updates (BGMLib::UI_Update) if new data is present
 bool Update(GameInfo* GI, FXString& WikiURL);
 
@@ -17,3 +20,5 @@ extern const FXchar TokenDelim;
 class ConfigParser;
 
 extern ConfigParser* LGD;	// Local Game Directory section in [LGDFile]
+
+#endif /* MUSICROOM_PARSE_H */
