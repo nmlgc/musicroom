@@ -434,13 +434,7 @@ uint MRTag_Flac::FmtTagHeaderSize()
 
 void MRTag_Flac::VCClear()
 {
-	for(int c = 0; c < vc.comments; c++)
-	{
-		SAFE_DELETE_ARRAY(vc.user_comments[c]);
-	}
-	SAFE_DELETE_ARRAY(vc.comment_lengths);
-	SAFE_DELETE_ARRAY(vc.vendor);
-	vc.comments = 0;
+	vorbis_comment_clear(&vc);
 }
 
 static ulong ThreeByteSwap(ulong In)
