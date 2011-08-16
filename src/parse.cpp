@@ -189,7 +189,9 @@ void SilenceScan(GameInfo* GI)
 
 	TrackInfo* TI;
 	FX::FXFile In;
-	FXulong c;
+	ulong c = 0;
+
+	ulong Comp = 0;
 
 	bool MultiFile = GI->BGMFile.empty();
 
@@ -208,7 +210,10 @@ void SilenceScan(GameInfo* GI)
 		char* Buf = new char[BufSize];
 		In.readBlock(Buf, BufSize);
 
-		for(c = 0; c < BufSize; c++)	if(Buf[c] != 0)	break;
+		for(c = 0; c < BufSize; c += 4)
+		{
+			if(memcmp(&Buf[c], &Comp, 4))	break;
+		}
 		// Fix Tasofro games
 		if(c == BufSize)	c = 0;
 

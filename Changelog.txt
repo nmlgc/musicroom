@@ -3,5 +3,8 @@
 Changelog
 ----------------------------
 
+- 2010/08/16
+* Fixed an oversight with the silence removal, which was checked byte- instead of sample-wise (yes, embarrassing, I know).
+
 - 2010/08/14
 * Initial release, containing music data from TH06 to TH12.8
