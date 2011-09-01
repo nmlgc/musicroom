@@ -824,10 +824,19 @@ long MainWnd::onExtract(FXObject* Sender, FXSelector Message, void* ptr)
 {
 	short ExtStart = -1, ExtEnd = -1;
 	bool Sel = FXSELID(Message) == MW_EXTRACT_SEL;
+	FXString Drive = FXPath::drive(OutPath);
+	
+	Drive = FXPath::simplify(Drive.upper() + PATHSEP);
 
 	// Directory Testing
 	// -----------------
 	if(!CheckOutDir())	return 1;
+	if(!FX::FXSystem::setCurrentDirectory(Drive))
+	{
+		FXMessageBox::error(getApp(), MBOX_OK, PrgName.text(), "Drive %s does not exist!", Drive.upper().text());
+		return 1;
+	}
+
 	if(!FX::FXSystem::setCurrentDirectory(OutPath))
 	{
 		if(!FX::FXDir::createDirectories(OutPath))
